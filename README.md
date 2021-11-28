@@ -6,6 +6,14 @@ OpenSimAD is used to formulate trajectory optimization problems with OpenSim mus
 
 Here we provide code and examples to generate external functions automatically given an OpenSim musculoskeletal model (.osim file).
 
+The code in this branch is adapted to require less manual inputs. Main differences in workflow are:
+
+1) Entering all joint and coordinate names in the appropriate order is no longer necessary. They are automatically retrieved from the given OpenSim model file.
+
+2) The name of every coordinate is saved (in a .mat file), along with their index in the input/output of the external function. This file also holds the sets of indices corresponding to each joint, groups of joints (e.g. "leg_r" has the indices of "hip_r" and every joint further in the kinematic chain. The left arm starts at "acromial_l"), all rotational coordinates, all translational coordinates. It also has the indices to the additional outputs such as ground reaction forces.
+
+3) The code generates a suitable motion (.mot file) to perform an inverse dynamic analysis of the model. The result of this analysis is needed to check the generated external function.
+
 ### Install requirements (Windows)
   - Third-party software:
     - CMake (make sure cmake.exe is in your path)

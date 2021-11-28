@@ -6,19 +6,24 @@ import casadi as ca
 import shutil
 import importlib
 import pandas as pd
+import scipy.io as sio
+import matlab.engine
+
 
 def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
-                             jointsOrder, coordinatesOrder, 
-                             export2DSegmentOrigins=[],
+                             jointsOrder=[], coordinatesOrder=[], 
                              exportGRFs=False, 
                              export3DSegmentOrigins=[],
                              exportGRMs=False,
+                             exportSeparateGRFs=False,
+                             exportContactPowers=False,
                              outputFilename='F',
                              compiler="Visual Studio 15 2017 Win64"):
     
     # %% Paths.
     os.makedirs(outputDir, exist_ok=True)
     pathOutputFile = os.path.join(outputDir, outputFilename + ".cpp")
+    pathOutputFile_IO = os.path.join(outputDir, outputFilename + "_IO.mat")
     
     # %% Generate external Function (.cpp file).
     model = opensim.Model(pathOpenSimModel)
@@ -42,11 +47,45 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
             nCoordinates -= 1
             nJoints -= 1
     
+    if (not jointsOrder or not coordinatesOrder):
+        jointsOrder = []
+        coordinatesOrder = []
+        for i in range(nJoints):
+            joint_i = jointSet.get(i);
+            joint_name_i = joint_i.getName()
+            if not 'patel' in joint_name_i:
+                jointsOrder.append(joint_name_i)
+                joint_i_Nc = joint_i.numCoordinates();
+                for j in range(joint_i_Nc):
+                    joint_i_coor = joint_i.get_coordinates(j)
+                    if joint_i_coor.get_locked():
+                        nCoordinates -= 1
+                    else:
+                        coordinatesOrder.append(joint_i_coor.getName())
+                
+
     nContacts = 0
     for i in range(forceSet.getSize()):        
         c_force_elt = forceSet.get(i)        
         if c_force_elt.getConcreteClassName() == "SmoothSphereHalfSpaceForce":  
             nContacts += 1
+    
+    joint_child_frames = {}
+    parent_frames_joint = {}
+    for i in range(nJoints):
+        joint_name_i = jointSet.get(i).getName()
+        joint_child_frames[joint_name_i] = jointSet.get(i).getChildFrame().findBaseFrame().getName()
+        parent_frames_joint[jointSet.get(i).getParentFrame().findBaseFrame().getName()] = joint_name_i
+    
+    leg_r = getDistalJoints(joint_child_frames, parent_frames_joint, 'hip_r')
+    jointi_leg_r = [];
+    leg_l = getDistalJoints(joint_child_frames, parent_frames_joint, 'hip_l')
+    jointi_leg_l = [];
+    arm_r = getDistalJoints(joint_child_frames, parent_frames_joint, 'acromial_r')
+    jointi_arm_r = [];
+    arm_l = getDistalJoints(joint_child_frames, parent_frames_joint, 'acromial_l')
+    jointi_arm_l = [];
+    
     
     with open(pathOutputFile, "w") as f:
         
@@ -83,10 +122,14 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('constexpr int NU = nCoordinates; \n')
         
         nOutputs = nCoordinates
-        if export2DSegmentOrigins:
-            nOutputs += 2*len(export2DSegmentOrigins)
+        #if export2DSegmentOrigins:
+        #    nOutputs += 2*len(export2DSegmentOrigins)
         if exportGRFs:
             nOutputs += 6
+        if exportSeparateGRFs:
+            nOutputs += 3*nContacts
+        if exportContactPowers:
+            nOutputs += nContacts
         if exportGRMs:
             nOutputs += 6
         if export3DSegmentOrigins:
@@ -604,6 +647,9 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     f.write('\t%s = new OpenSim::%s(\"%s\", *%s, Vec3(%.20f, %.20f, %.20f), Vec3(%.20f, %.20f, %.20f), *%s, Vec3(%.20f, %.20f, %.20f), Vec3(%.20f, %.20f, %.20f), st_%s);\n' % (c_joint.getName(), c_joint_type, c_joint.getName(), parent_frame_name, parent_frame_trans[0], parent_frame_trans[1], parent_frame_trans[2], parent_frame_or[0], parent_frame_or[1], parent_frame_or[2], child_frame_name, child_frame_trans[0], child_frame_trans[1], child_frame_trans[2], child_frame_or[0], child_frame_or[1], child_frame_or[2], c_joint.getName()))
                 
             elif c_joint_type == 'PinJoint' or c_joint_type == 'WeldJoint' :
+                if c_joint_type == 'PinJoint':
+                    if c_joint.get_coordinates(0).get_locked():
+                        c_joint_type = 'WeldJoint'
                 f.write('\tOpenSim::%s* %s;\n' % (c_joint_type, c_joint.getName()))
                 if parent_frame_name == "ground":
                     f.write('\t%s = new OpenSim::%s(\"%s\", model->getGround(), Vec3(%.20f, %.20f, %.20f), Vec3(%.20f, %.20f, %.20f), *%s, Vec3(%.20f, %.20f, %.20f), Vec3(%.20f, %.20f, %.20f));\n' % (c_joint.getName(), c_joint_type, c_joint.getName(), parent_frame_trans[0], parent_frame_trans[1], parent_frame_trans[2], parent_frame_or[0], parent_frame_or[1], parent_frame_or[2], child_frame_name, child_frame_trans[0], child_frame_trans[1], child_frame_trans[2], child_frame_or[0], child_frame_or[1], child_frame_or[2]))     
@@ -614,11 +660,45 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
             
             f.write('\n')
         # Add joints to model in pre-defined order
+        jointi = {}
+        all_coordi = {}
+        joint_isRot = []
+        joint_isTra = []    
+        outputCount = 1
         if jointsOrder:
             for jointOrder in jointsOrder: 
                 f.write('\tmodel->addJoint(%s);\n' % (jointOrder))
+                coordi = []
                 try:
                     c_joint = jointSet.get(jointOrder)
+                    c_joint_name = c_joint.getName();
+                    parent_frame = c_joint.get_frames(0)
+                    parent_frame_name = parent_frame.getParentFrame().getName()
+                    
+                    for j in range(c_joint.numCoordinates()):
+                        c_joint_coor = c_joint.get_coordinates(j)
+                        if not c_joint_coor.get_locked():
+                            all_coordi[c_joint_coor.getName()] = outputCount
+                            coordi.append(outputCount)
+                            if c_joint_coor.getMotionType() == 1:
+                                joint_isRot.append(outputCount)
+                            elif c_joint_coor.getMotionType() == 2:
+                                joint_isTra.append(outputCount)
+                            outputCount += 1
+                        
+                    if parent_frame_name == 'ground':
+                        jointi['base'] = coordi
+                            
+                    jointi[c_joint_name] = coordi
+                    if len(coordi) > 0:
+                        if leg_r.count(c_joint_name) > 0:
+                            jointi_leg_r.extend(coordi)
+                        if leg_l.count(c_joint_name) > 0:
+                            jointi_leg_l.extend(coordi)
+                        if arm_r.count(c_joint_name) > 0:
+                            jointi_arm_r.extend(coordi)
+                        if arm_l.count(c_joint_name) > 0:
+                            jointi_arm_l.extend(coordi)
                 except:
                     raise ValueError("Joint from jointOrder not in jointSet")                
             assert(len(jointsOrder) == nJoints), "jointsOrder and jointSet have different sizes"
@@ -757,17 +837,17 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('\tmodel->getMatterSubsystem().calcResidualForceIgnoringConstraints(*state,\n')
         f.write('\t\t\tappliedMobilityForces, appliedBodyForces, knownUdot, residualMobilityForces);\n\n')
         
-        if export2DSegmentOrigins:
-            f.write('\t/// Segment origins.\n')
-            for segment in export2DSegmentOrigins:
-                f.write('\tVec3 %s_or = %s->getPositionInGround(*state);\n' % (segment, segment))
-            f.write('\n')
+        #if export2DSegmentOrigins:
+         #   f.write('\t/// Segment origins.\n')
+         #   for segment in export2DSegmentOrigins:
+         #      f.write('\tVec3 %s_or = %s->getPositionInGround(*state);\n' % (segment, segment))
+         #      f.write('\n')
             
         if export3DSegmentOrigins:
             f.write('\t/// Segment origins.\n')
             for segment in export3DSegmentOrigins:
-                if not segment in export2DSegmentOrigins:
-                    f.write('\tVec3 %s_or = %s->getPositionInGround(*state);\n' % (segment, segment))
+                #if not segment in export2DSegmentOrigins:
+                f.write('\tVec3 %s_or = %s->getPositionInGround(*state);\n' % (segment, segment))
             f.write('\n')            
             
         if exportGRFs:
@@ -831,28 +911,67 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('\tfor (int i = 0; i < NU; ++i) res[0][i] =\n')
         f.write('\t\t\tvalue<T>(residualMobilityForces[indicesSimbodyInOS[i]]);\n')
         count_acc = 0
+        jointi['rotations'] = joint_isRot
+        jointi['translations'] = joint_isTra
+        jointi['leg_r'] = jointi_leg_r
+        jointi['leg_l'] = jointi_leg_l
+        jointi['arm_r'] = jointi_arm_r
+        jointi['arm_l'] = jointi_arm_l
+        IO_indices = {'jointi': jointi}
+        IO_indices['coordi'] = all_coordi
         
-        if export2DSegmentOrigins:
-            f.write('\t/// 2D segment origins.\n')
-            for c_seg, segment in enumerate(export2DSegmentOrigins):                    
-                f.write('\tres[0][NU + %i] = value<T>(%s_or[0]); \n' % (count_acc+c_seg*2, segment))
-                f.write('\tres[0][NU + %i] = value<T>(%s_or[2]); \n' % (count_acc+c_seg*2+1, segment))
-            count_acc += 2*len(export2DSegmentOrigins)                
+        #if export2DSegmentOrigins:
+        #    f.write('\t/// 2D segment origins.\n')
+        #    for c_seg, segment in enumerate(export2DSegmentOrigins):                    
+        #        f.write('\tres[0][NU + %i] = value<T>(%s_or[0]); \n' % (count_acc+c_seg*2, segment))
+        #        f.write('\tres[0][NU + %i] = value<T>(%s_or[2]); \n' % (count_acc+c_seg*2+1, segment))
+        #    count_acc += 2*len(export2DSegmentOrigins)      
+        
+        if export3DSegmentOrigins:
+            f.write('\t/// 3D segment origins.\n')
+            IO_origins = {}
+            for c_seg, segment in enumerate(export3DSegmentOrigins):
+                f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(%s_or[i]);\n' % (count_acc+c_seg*3, segment))
+                tmp = outputCount + count_acc+c_seg*3
+                segment_i = range(tmp,tmp+3)
+                IO_origins[segment] = segment_i
+            count_acc += 3*len(export3DSegmentOrigins)
+            IO_indices['origin'] = IO_origins
+            
+        IO_GRFs = {}
         if exportGRFs:
             f.write('\t/// Ground reaction forces.\n')
             f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_r[1][i]);\n' % (count_acc))
             f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_l[1][i]);\n' % (count_acc+3))
-            count_acc += 6        
-        if export3DSegmentOrigins:
-            f.write('\t/// 3D segment origins.\n')
-            for c_seg, segment in enumerate(export3DSegmentOrigins):
-                f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(%s_or[i]);\n' % (count_acc+c_seg*3, segment))
-            count_acc += 3*len(export3DSegmentOrigins)
+            tmp = outputCount + count_acc
+            IO_GRFs['right_foot'] = range(tmp,tmp+3)
+            IO_GRFs['left_foot'] = range(tmp+3,tmp+6)
+            count_acc += 6
+            
+        if exportSeparateGRFs:
+            f.write('\t/// Separate Ground reaction forces.\n')
+            count_GRF = 1
+            for i_GRF in range(nContacts):
+                f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_%s[1][i]);\n' % (count_acc, str(i_GRF)))
+                tmp = outputCount + count_acc
+                IO_GRFs['contact_sphere_'+str(i_GRF+1)] = range(tmp,tmp+3)
+                count_acc += 3
+                count_GRF += 1
+            
+        if (exportGRFs or exportSeparateGRFs):
+            IO_indices['GRFs'] = IO_GRFs
+            
         if exportGRMs:
+            IO_GRMs = {}
             f.write('\t/// Ground reaction moments.\n')
             f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRM_r[1][i]);\n' % (count_acc))
             f.write('\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRM_l[1][i]);\n' % (count_acc+3))
+            tmp = outputCount + count_acc
+            IO_GRMs = {'right_total':range(tmp,tmp+3), 'left_total':range(tmp+3,tmp+6)}
             count_acc += 6
+            IO_indices['GRMs'] = IO_GRMs
+            
+        #if exportContactPowers
             
         f.write('\n')
         f.write('\treturn 0;\n')
@@ -873,22 +992,45 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('\treturn 0;\n')
         f.write('}\n')
         
+    # %% Save IO indices to .mat file
+    sio.savemat(pathOutputFile_IO, {'IO': IO_indices})
+    
+    
     # %% Build external Function (.dll file).
-    buildExternalFunction(outputFilename, outputDir,
-                          3*nCoordinates,
-                          compiler=compiler)
+    # buildExternalFunction(outputFilename, outputDir,
+    #                       3*nCoordinates,
+    #                       compiler=compiler)
         
     # %% Verification
     # Run ID with the .osim file and verify that we can get the same torques 
     # as with the external function.
-    pathGenericIDSetupFile = os.path.join(pathID, "SetupID.xml")
+    mot_file = 'Verify_' + outputFilename +'.mot'
+    path_mot = os.path.join(pathID,mot_file)
     
+    if not os.path.isfile(path_mot):
+        eng = matlab.engine.start_matlab()
+        colnames = []
+        dataMatrix = []
+        nCoordinatesAll = coordinateSet.getSize()
+        for coord in range(nCoordinatesAll):
+            c_name = coordinateSet.get(coord).getName()
+            colnames.append(c_name)
+            if c_name == 'pelvis_ty':
+                dataMatrix.append(-0.05)
+            else:
+                dataMatrix.append(0.05)
+            
+                
+        eng.generateMotFileFromPython(dataMatrix, colnames, path_mot, nargout=0)
+        
+    
+    pathGenericIDSetupFile = os.path.join(pathID, "SetupID.xml")
     idTool = opensim.InverseDynamicsTool(pathGenericIDSetupFile)
     idTool.setName("ID_withOsimAndIDTool")
     idTool.setModelFileName(pathOpenSimModel)
     idTool.setResultsDir(outputDir)
-    idTool.setCoordinatesFileName(
-        os.path.join(pathID, "DefaultPosition.mot"))
+    idTool.setCoordinatesFileName(path_mot)
+    # idTool.setCoordinatesFileName(os.path.join(pathID, "DefaultPosition.mot"))
     idTool.setOutputGenForceFileName("ID_withOsimAndIDTool.sto")       
     pathSetupID = os.path.join(outputDir, "SetupID.xml")
     idTool.printToXML(pathSetupID)
@@ -928,7 +1070,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                                       outputFilename + '.dll')) 
     vec1 = np.zeros((nCoordinates*2, 1))
     vec1[::2, :] = 0.05   
-    vec1[8, :] = -0.05
+    vec1[(all_coordi['pelvis_ty']-1)*2, :] = -0.05
     vec2 = np.zeros((nCoordinates, 1))
     vec3 = np.concatenate((vec1,vec2))
     ID_F = (F(vec3)).full().flatten()[:nCoordinates]
@@ -1058,3 +1200,26 @@ def storage2df(storage_file, headers):
         out.insert(count + 1, header, data[header])    
     
     return out
+
+# %% Get coordinate names distal to a given joint
+def getDistalJoints(child_frames,parent_frames,starting_joint):
+    joints_chain = []
+    condition = True
+    next_joint = starting_joint;
+    while condition:
+        joints_chain.append(next_joint)
+        next_frame = child_frames[next_joint]
+        if next_frame in parent_frames:
+            next_joint = parent_frames[next_frame]
+        else:
+            condition = False
+    return joints_chain
+        
+        
+        
+        
+        
+        
+
+
+
