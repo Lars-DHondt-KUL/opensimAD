@@ -997,9 +997,9 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     
     
     # %% Build external Function (.dll file).
-    # buildExternalFunction(outputFilename, outputDir,
-    #                       3*nCoordinates,
-    #                       compiler=compiler)
+    buildExternalFunction(outputFilename, outputDir,
+                          3*nCoordinates,
+                          compiler=compiler)
         
     # %% Verification
     # Run ID with the .osim file and verify that we can get the same torques 
