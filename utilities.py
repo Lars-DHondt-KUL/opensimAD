@@ -1042,11 +1042,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     headers = []
     nCoordinatesAll = coordinateSet.getSize()
     for coord in range(nCoordinatesAll):                
-        if (coordinateSet.get(coord).getName() == "pelvis_tx" or 
-            coordinateSet.get(coord).getName() == "pelvis_ty" or 
-            coordinateSet.get(coord).getName() == "pelvis_tz" or
-            coordinateSet.get(coord).getName() == "knee_angle_r_beta" or 
-            coordinateSet.get(coord).getName() == "knee_angle_l_beta"):
+        if all_coordi[coordinateSet.get(coord).getName()] in joint_isTra:
             suffix_header = "_force"
         else:
             suffix_header = "_moment"
@@ -1057,9 +1053,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                                   "ID_withOsimAndIDTool.sto"), headers)
     ID_osim = np.zeros((nCoordinates))
     for count, coordinateOrder in enumerate(coordinatesOrder):
-        if (coordinateOrder == "pelvis_tx" or 
-            coordinateOrder == "pelvis_ty" or 
-            coordinateOrder == "pelvis_tz"):
+        if all_coordi[coordinateOrder] in joint_isTra:
             suffix_header = "_force"
         else:
             suffix_header = "_moment"
@@ -1069,8 +1063,9 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     F = ca.external('F', os.path.join(outputDir, 
                                       outputFilename + '.dll')) 
     vec1 = np.zeros((nCoordinates*2, 1))
-    vec1[::2, :] = 0.05   
-    vec1[(all_coordi['pelvis_ty']-1)*2, :] = -0.05
+    vec1[::2, :] = 0.05
+    if 'pelvis_ty' in all_coordi:
+        vec1[(all_coordi['pelvis_ty']-1)*2, :] = -0.05
     vec2 = np.zeros((nCoordinates, 1))
     vec3 = np.concatenate((vec1,vec2))
     ID_F = (F(vec3)).full().flatten()[:nCoordinates]
@@ -1206,6 +1201,8 @@ def getDistalJoints(child_frames,parent_frames,starting_joint):
     joints_chain = []
     condition = True
     next_joint = starting_joint;
+    if not next_joint in child_frames:
+        return joints_chain
     while condition:
         joints_chain.append(next_joint)
         next_frame = child_frames[next_joint]
