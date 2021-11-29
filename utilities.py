@@ -7,7 +7,6 @@ import shutil
 import importlib
 import pandas as pd
 import scipy.io as sio
-import matlab.engine
 
 
 def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
@@ -663,7 +662,8 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         jointi = {}
         all_coordi = {}
         joint_isRot = []
-        joint_isTra = []    
+        joint_isTra = []
+        jointi_torso = []
         outputCount = 1
         if jointsOrder:
             for jointOrder in jointsOrder: 
@@ -686,24 +686,29 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                                 joint_isTra.append(outputCount)
                             outputCount += 1
                         
-                    if parent_frame_name == 'ground':
-                        jointi['base'] = coordi
-                            
                     jointi[c_joint_name] = coordi
-                    if len(coordi) > 0:
+                    
+                    if parent_frame_name == 'ground':
+                        jointi['floating_base'] = coordi
+                    elif len(coordi) > 0:
                         if leg_r.count(c_joint_name) > 0:
                             jointi_leg_r.extend(coordi)
-                        if leg_l.count(c_joint_name) > 0:
+                        elif leg_l.count(c_joint_name) > 0:
                             jointi_leg_l.extend(coordi)
-                        if arm_r.count(c_joint_name) > 0:
+                        elif arm_r.count(c_joint_name) > 0:
                             jointi_arm_r.extend(coordi)
-                        if arm_l.count(c_joint_name) > 0:
+                        elif arm_l.count(c_joint_name) > 0:
                             jointi_arm_l.extend(coordi)
+                        else:
+                            jointi_torso.extend(coordi)
+                        
+                    jointi[c_joint_name] = coordi
+                        
                 except:
                     raise ValueError("Joint from jointOrder not in jointSet")                
             assert(len(jointsOrder) == nJoints), "jointsOrder and jointSet have different sizes"
         f.write('\n')    
-                
+        
         # Contacts
         f.write('\t// Definition of contacts.\n')   
         for i in range(forceSet.getSize()):        
@@ -917,6 +922,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         jointi['leg_l'] = jointi_leg_l
         jointi['arm_r'] = jointi_arm_r
         jointi['arm_l'] = jointi_arm_l
+        jointi['torso'] = jointi_torso
         IO_indices = {'jointi': jointi}
         IO_indices['coordi'] = all_coordi
         
@@ -1004,24 +1010,29 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     # %% Verification
     # Run ID with the .osim file and verify that we can get the same torques 
     # as with the external function.
+    
+    # Extract torques from external function.
+    F = ca.external('F', os.path.join(outputDir, outputFilename + '.dll')) 
+    vec1 = np.zeros((nCoordinates*2, 1))
+    vec1[::2, :] = 0.05
+    if 'pelvis_ty' in all_coordi:
+        vec1[(all_coordi['pelvis_ty']-1)*2, :] = -0.05
+    vec2 = np.zeros((nCoordinates, 1))
+    vec3 = np.concatenate((vec1,vec2))
+    ID_F = (F(vec3)).full().flatten()[:nCoordinates]
+
+    # Generate .mot file with same position inputs
     mot_file = 'Verify_' + outputFilename +'.mot'
     path_mot = os.path.join(pathID,mot_file)
     
     if not os.path.isfile(path_mot):
-        eng = matlab.engine.start_matlab()
-        colnames = []
-        dataMatrix = []
-        nCoordinatesAll = coordinateSet.getSize()
-        for coord in range(nCoordinatesAll):
-            c_name = coordinateSet.get(coord).getName()
-            colnames.append(c_name)
-            if c_name == 'pelvis_ty':
-                dataMatrix.append(-0.05)
-            else:
-                dataMatrix.append(0.05)
-            
-                
-        eng.generateMotFileFromPython(dataMatrix, colnames, path_mot, nargout=0)
+        labels = ['time'] + coordinatesOrder
+        vec4 = vec1[::2,:]
+        data_coords = vec4.repeat(10,axis=1)
+        data_time = np.zeros((1,10))
+        data_time[:,:] = np.arange(0.01,0.11,0.01)
+        data = np.concatenate((data_time.T, data_coords.T), axis=1)
+        numpy2storage(labels, data, path_mot)
         
     
     pathGenericIDSetupFile = os.path.join(pathID, "SetupID.xml")
@@ -1030,7 +1041,6 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     idTool.setModelFileName(pathOpenSimModel)
     idTool.setResultsDir(outputDir)
     idTool.setCoordinatesFileName(path_mot)
-    # idTool.setCoordinatesFileName(os.path.join(pathID, "DefaultPosition.mot"))
     idTool.setOutputGenForceFileName("ID_withOsimAndIDTool.sto")       
     pathSetupID = os.path.join(outputDir, "SetupID.xml")
     idTool.printToXML(pathSetupID)
@@ -1059,16 +1069,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
             suffix_header = "_moment"
         ID_osim[count] = ID_osim_df.iloc[0][coordinateOrder + suffix_header]
     
-    # Extract torques from external function.
-    F = ca.external('F', os.path.join(outputDir, 
-                                      outputFilename + '.dll')) 
-    vec1 = np.zeros((nCoordinates*2, 1))
-    vec1[::2, :] = 0.05
-    if 'pelvis_ty' in all_coordi:
-        vec1[(all_coordi['pelvis_ty']-1)*2, :] = -0.05
-    vec2 = np.zeros((nCoordinates, 1))
-    vec3 = np.concatenate((vec1,vec2))
-    ID_F = (F(vec3)).full().flatten()[:nCoordinates]
+    
     # Assert we get the same torques.     
     assert(np.max(np.abs(ID_osim - ID_F)) < 1e-6), "error F vs ID tool & osim"
 
@@ -1213,10 +1214,28 @@ def getDistalJoints(child_frames,parent_frames,starting_joint):
     return joints_chain
         
         
+# %% Generate motion (.mot) file
+# Adapted from https://github.com/antoinefalisse/predictsim_mtp/blob/cleaning/utilities.py
+def numpy2storage(labels, data, storage_file):
+    
+    assert data.shape[1] == len(labels), "# labels doesn't match columns"
+    assert labels[0] == "time"
+    
+    f = open(storage_file, 'w')
+    f.write('name %s\n' %storage_file)
+    f.write('version=1\n')
+    f.write('datacolumns %d\n' %data.shape[1])
+    f.write('datarows %d\n' %data.shape[0])
+    f.write('range %f %f\n' %(np.min(data[:, 0]), np.max(data[:, 0])))
+    f.write('endheader \n')
+    
+    for i in range(len(labels)):
+        f.write('%s\t' %labels[i])
+    f.write('\n')
+    
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            f.write('%.2f\t' %data[i, j])
+        f.write('\n')
         
-        
-        
-        
-
-
-
+    f.close()  
