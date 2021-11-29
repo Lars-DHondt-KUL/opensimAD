@@ -4,36 +4,40 @@ Windows libraries for OpenSimAD - OpenSim with support for Algorithmic Different
 ## How to generate an external function for use with CasADi?
 OpenSimAD is used to formulate trajectory optimization problems with OpenSim musculoskeletal models. To leverage the benefits of algorithmic differentiation, we use [CasADi external functions](https://web.casadi.org/docs/#casadi-s-external-function). In our case, the external functions typically take as inputs the multi-body model states (joint positions and speeds) and controls (join accelerations) and return the joint torques after solving inverse dynamics. The external functions can then be called when formulating trajectory optimization problems (e.g., https://github.com/antoinefalisse/3dpredictsim and https://github.com/antoinefalisse/predictsim_mtp).
 
-Here we provide code and examples to generate external functions automatically given an OpenSim musculoskeletal model (.osim file).
-
+## Automating the workflow
 The code in this branch is adapted to require less manual inputs. Main differences in workflow are:
-
 1) Entering all joint and coordinate names in the appropriate order is no longer necessary. They are automatically retrieved from the given OpenSim model file.
-2) The name of every coordinate is saved (in a .mat file), along with their index in the input/output of the external function. This file also holds the sets of indices corresponding to each joint, groups of joints (e.g. "leg_r" has the indices of "hip_r" and every joint further in the kinematic chain. The left arm starts at "acromial_l"), all rotational coordinates, all translational coordinates. It also has the indices to the additional outputs such as ground reaction forces.
+2) The name of every coordinate is saved (in a .mat file), along with their index in the input/output of the external function. This file also holds the sets of indices corresponding to each joint, groups of joints, all rotational coordinates, all translational coordinates. It also has the indices to the additional outputs such as ground reaction forces (x,y,z), or body origin locations (x,y,z).
 3) The code generates a suitable motion (.mot file) to perform an inverse dynamic analysis of the model. The result of this analysis is needed to check the generated external function.
 
-**TO DO**
-- Write a Python function to generate motion files. (To get rid of the MATLAB reliance.)
+The joint groups are defined as:
+- *floating_base*: the joint that has its parent coordinate frame connected to the ground
+- *leg_r*: the joint with name "hip_r", and every joint further down this kinematic chain
+- *arm_r*: the joint with name 'acromial_r" and every joint further down this kinematic chain
+- *leg_l*: the joint with name "hip_l", and every joint further down this kinematic chain
+- *arm_l*: the joint with name 'acromial_l" and every joint further down this kinematic chain
+- *torso*: all joints that do not fall in an aforementioned group
+These groups can be used te generalise full body models. 
+
+This workflow is not limited to full body models. [Any OpenSim model](https://user-images.githubusercontent.com/71920801/143950905-9ef6263e-c763-409a-bf7e-905efd8d28b8.png) within the given [limitations](#Limitations) can be used to generate an external function.
+
+## Getting started
+Here we provide code and examples to generate external functions automatically given an OpenSim musculoskeletal model (.osim file).
 
 ### Install requirements (Windows)
 #### If you have the main version of OpenSimAD
-  - Third-party software:
-    - MATLAB
   - Get adapted files:
     - Swap the existing *main.py* and *utilities.py* for those from this branch
-    - Download *generateMotFile.m* and *generateMotFileFromPython.m*
   - conda environment:
     - Open an Anaconda prompt
     - Activate environment: `conda activate opensimAD`
     - Install required packages: `pip install scipy`
-    - Install the [MATLAB engine API for Python](https://nl.mathworks.com/help/matlab/matlab_external/install-the-matlab-engine-for-python.html)
    
 #### If you do not have the main version of OpenSimAD
   - Third-party software:
     - CMake (make sure cmake.exe is in your path)
     - Visual studio (tested with Visual Studio 2017 Community only)
     - Anaconda
-    - MATLAB
   - conda environment:
     - Open an Anaconda prompt
     - Create environment: `conda create -n opensimAD pip spyder python=3.8`
@@ -43,7 +47,6 @@ The code in this branch is adapted to require less manual inputs. Main differenc
     - Navigate to the folder: `cd opensimAD`
     - Install required packages: `python -m pip install -r requirements.txt`
     - Install OpenSim by following the instructions [here](https://simtk-confluence.stanford.edu:8443/display/OpenSim/Scripting+in+Python)
-    - Install the [MATLAB engine API for Python](https://nl.mathworks.com/help/matlab/matlab_external/install-the-matlab-engine-for-python.html)
 
 ### Example
   - run `main.py`
