@@ -89,6 +89,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('#include <OpenSim/Simulation/Model/Model.h>\n')
         f.write('#include <OpenSim/Simulation/SimbodyEngine/PinJoint.h>\n')
         f.write('#include <OpenSim/Simulation/SimbodyEngine/WeldJoint.h>\n')
+        f.write('#include <OpenSim/Simulation/SimbodyEngine/PlanarJoint.h>\n')
         f.write('#include <OpenSim/Simulation/SimbodyEngine/Joint.h>\n')
         f.write('#include <OpenSim/Simulation/SimbodyEngine/SpatialTransform.h>\n')
         f.write('#include <OpenSim/Simulation/SimbodyEngine/CustomJoint.h>\n')
@@ -365,7 +366,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                         child_frame_trans[2], child_frame_or[0], child_frame_or[1], child_frame_or[2],
                         c_joint.getName()))
 
-            elif c_joint_type == 'PinJoint' or c_joint_type == 'WeldJoint':
+            elif c_joint_type == 'PinJoint' or c_joint_type == 'WeldJoint' or c_joint_type == 'PlanarJoint':
                 if c_joint_type == 'PinJoint':
                     if c_joint.get_coordinates(0).get_locked():
                         c_joint_type = 'WeldJoint'
@@ -384,10 +385,8 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                         parent_frame_trans[1], parent_frame_trans[2], parent_frame_or[0], parent_frame_or[1],
                         parent_frame_or[2], child_frame_name, child_frame_trans[0], child_frame_trans[1],
                         child_frame_trans[2], child_frame_or[0], child_frame_or[1], child_frame_or[2]))
-            elif c_joint_type = 'Planar':
-                print('To Do, add planar joint')
-                raise ValueError("Planar joint not supported yet")
             else:
+                print('joint type error: ', c_joint_type)
                 raise ValueError("TODO: joint type not yet supported")
 
             f.write('\n')
