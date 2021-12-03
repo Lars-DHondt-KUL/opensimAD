@@ -759,7 +759,6 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
     sio.savemat(pathOutputFile_IO, {'IO': IO_indices})
 
     # %% Build external Function (.dll file).
-    print('number of coordinates ', nCoordinates)
     buildExternalFunction(outputFilename, outputDir,
                           3 * nCoordinates,
                           compiler=compiler)
