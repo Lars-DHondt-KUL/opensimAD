@@ -11,12 +11,12 @@ The code in this branch is adapted to require less manual inputs. Main differenc
 3) The code generates a suitable motion (.mot file) to perform an inverse dynamic analysis of the model. The result of this analysis is needed to check the generated external function.
 
 The joint groups are defined as:
-- *floating_base*: the joint that has its parent coordinate frame connected to the ground
-- *leg_r*: the joint with name "hip_r", and every joint further down this kinematic chain
-- *arm_r*: the joint with name 'acromial_r" and every joint further down this kinematic chain
-- *leg_l*: the joint with name "hip_l", and every joint further down this kinematic chain
-- *arm_l*: the joint with name 'acromial_l" and every joint further down this kinematic chain
-- *torso*: all joints that do not fall in an aforementioned group
+- *floating_base:* the joint that has its parent coordinate frame connected to the ground
+- *leg_r:* the joint with name "hip_r", and every joint further down this kinematic chain
+- *arm_r:* the joint with name 'acromial_r" and every joint further down this kinematic chain
+- *leg_l:* the joint with name "hip_l", and every joint further down this kinematic chain
+- *arm_l:* the joint with name 'acromial_l" and every joint further down this kinematic chain
+- *torso:* all joints that do not fall in an aforementioned group
 These groups can be used te generalise full body models. 
 
 This workflow is not limited to full body models. [Any OpenSim model](https://user-images.githubusercontent.com/71920801/143950905-9ef6263e-c763-409a-bf7e-905efd8d28b8.png) within the given [limitations](#Limitations) can be used to generate an external function.
@@ -59,6 +59,10 @@ Here we provide code and examples to generate external functions automatically g
     - **Constraints will be ignored** (eg, coupling constraints).
     - **SimmSplines are not supported**, as their implementation in OpenSim is not really compatible with algorithmic differentiation. See how we replaced the splines of the [LaiArnold_modifed model](https://simtk.org/projects/model-high-flex) with polynomials.
   - OpenSimAD does not support all features of OpenSim. **Make sure you verify what you are doing**. We have only used OpenSimAD for specific applications.
+
+### Troubleshooting
+- On KU Leuven computers, run opensimAD from the \_MyPrograms folder to prevent issues with group policy.
+- When getting an error message containing "opensim" or "simbody", check your [OpenSim installation](https://simtk-confluence.stanford.edu:8443/display/OpenSim/Scripting+in+Python) and path settings are correct.
 
 ## Tutorial
   - TODO: You can find here a tutorial describing how to generate a predictive simulation of walking. The tutorial describes all the steps required, including the use of OpenSimAD to general external functions for use when formulating the trajectory optimization problem underlying the predictive simulation. 
