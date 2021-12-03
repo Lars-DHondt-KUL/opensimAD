@@ -232,9 +232,6 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
 
                 nCoords = spatialtransform.getCoordinateNames().getSize()
 
-                if nCoords == 3:
-                    print('test')
-
                 for iCoord in range(6):
                     if iCoord == 0:
                         dofSel = spatialtransform.get_rotation1()
@@ -249,10 +246,6 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     elif iCoord == 5:
                         dofSel = spatialtransform.get_translation3()
                     coord = iCoord
-
-                    # change the coordinate index 2D models for the floating base
-                    #if nCoords == 3:
-                    #    print('test')
 
                     # Transform axis.
                     dofSel_axis = dofSel.get_axis().to_numpy()
