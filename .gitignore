@@ -5,3 +5,9 @@ __pycache__/
 examples/*
 !examples/Hamner_modified.osim
 !examples/LaiArnold_modified.osim
+
+InverseDynamics/*
+!InverseDynamics/DefaultPosition.mot
+!InverseDynamics/SetupID
+
+main_use.py

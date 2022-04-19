@@ -281,6 +281,11 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                                 '\tosim_double_adouble st_%s_%i_coeffs[%i] = {%.20f, %.20f, %.20f, %.20f, %.20f}; \n' % (
                                 c_joint.getName(), coord, c_nCoeffs, dofSel_f_coeffs[0], dofSel_f_coeffs[1], dofSel_f_coeffs[2],
                                 dofSel_f_coeffs[3], dofSel_f_coeffs[4]))
+                        elif c_nCoeffs == 7:
+                            f.write(
+                                '\tosim_double_adouble st_%s_%i_coeffs[%i] = {%.20f, %.20f, %.20f, %.20f, %.20f, %.20f, %.20f}; \n' % (
+                                c_joint.getName(), coord, c_nCoeffs, dofSel_f_coeffs[0], dofSel_f_coeffs[1], dofSel_f_coeffs[2],
+                                dofSel_f_coeffs[3], dofSel_f_coeffs[4], dofSel_f_coeffs[5], dofSel_f_coeffs[6]))
                         else:
                             raise ValueError("TODO")
                         f.write('\tVector st_%s_%i_coeffs_vec(%i); \n' % (c_joint.getName(), coord, c_nCoeffs))
@@ -658,6 +663,51 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     f.write('\n')
                     count += 1
 
+        
+        if exportContactPowers:
+            f.write('\t/// Contact spheres deformation power.\n')
+            count = 0
+            geo1_frameNames = []
+            for i in range(forceSet.getSize()):
+                c_force_elt = forceSet.get(i)
+                if c_force_elt.getConcreteClassName() == "SmoothSphereHalfSpaceForce":
+                    c_force_elt_name = c_force_elt.getName()
+                    socket1Name = c_force_elt.getSocketNames()[1]
+                    socket1 = c_force_elt.getSocket(socket1Name)
+                    socket1_obj = socket1.getConnecteeAsObject()
+                    socket1_objName = socket1_obj.getName()
+                    geo1 = geometrySet.get(socket1_objName)
+                    geo1_frameName = geo1.getFrame().getName()
+
+                    # if not geo1_frameName in geo1_frameNames:
+                    #     f.write('\tSimTK::Transform TR_GB_%s = %s->getMobilizedBody().getBodyTransform(*state);\n' % (
+                    #     geo1_frameName, geo1_frameName))
+                    #     geo1_frameNames.append(geo1_frameName)
+
+                    f.write('\tVec3 %s_velocity_G = %s->findStationVelocityInGround(*state, %s_location);\n' % (
+                    c_force_elt_name, geo1_frameName, c_force_elt_name))
+                    f.write('\tosim_double_adouble P_HC_y_%i = %s_velocity_G[1]*GRF_%i[1][1];' % (count, c_force_elt_name, count))
+                    # f.write('\tosim_double_adouble P_HC_y_%i = %s_velocity_G[1];' % (count, c_force_elt_name))
+                    
+                    # f.write('\tVec3 %s_locationCP_G = %s_location_G - %s_radius * normal;\n' % (
+                    # c_force_elt_name, c_force_elt_name, c_force_elt_name))
+                    # f.write('\tVec3 locationCP_G_adj_%i = %s_locationCP_G - 0.5*%s_locationCP_G[1] * normal;\n' % (
+                    # count, c_force_elt_name, c_force_elt_name))
+                    # f.write(
+                    #     '\tVec3 %s_locationCP_B = model->getGround().findStationLocationInAnotherFrame(*state, locationCP_G_adj_%i, *%s);\n' % (
+                    #     c_force_elt_name, count, geo1_frameName))
+                    # f.write('\tVec3 GRM_%i = (TR_GB_%s*%s_locationCP_B) %% GRF_%s[1];\n' % (
+                    # count, geo1_frameName, c_force_elt_name, str(count)))
+
+                    # if c_force_elt_name[-2:] == "_r":
+                    #     f.write('\tGRM_r += GRM_%i;\n' % (count))
+                    # elif c_force_elt_name[-2:] == "_l":
+                    #     f.write('\tGRM_l += GRM_%i;\n' % (count))
+                    # else:
+                    #     raise ValueError("Cannot identify contact side")
+                    f.write('\n')
+                    count += 1
+        
         f.write('\t/// Outputs.\n')
         f.write('\t/// Residual forces (OpenSim and Simbody have different state orders).\n')
         f.write('\tauto indicesSimbodyInOS = getIndicesSimbodyInOS(*model);\n')
@@ -727,7 +777,15 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
             count_acc += 6
             IO_indices['GRMs'] = IO_GRMs
 
-        # if exportContactPowers
+        if exportContactPowers:
+            IO_P_HC_ys = {}
+            f.write('\t/// Contact spheres deformation power.\n')
+            for i_GRF in range(nContacts):
+                f.write('\tres[0][NU + %i] = value<T>(P_HC_y_%s);\n' % (count_acc, str(i_GRF)))
+                tmp = outputCount + count_acc
+                IO_P_HC_ys['contact_sphere_' + str(i_GRF + 1)] = tmp
+                count_acc += 1
+            IO_indices['P_contact_deformation_y'] = IO_P_HC_ys
 
         f.write('\n')
         f.write('\treturn 0;\n')
