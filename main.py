@@ -98,7 +98,7 @@ exportGRMs = True
 # If True, right and left vertical deformation power of all contact spheres 
 # are exported. 
 # Set False or do not pass as argument to not export those variables.
-exportContactPowers = False # not implemented
+exportContactPowers = True
 
 
 
