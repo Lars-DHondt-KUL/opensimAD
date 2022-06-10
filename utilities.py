@@ -8,7 +8,6 @@ import importlib
 import pandas as pd
 import scipy.io as sio
 
-
 def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                              jointsOrder=[], coordinatesOrder=[],
                              exportGRFs=False,
@@ -18,10 +17,119 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                              exportContactPowers=False,
                              outputFilename='F',
                              compiler="Visual Studio 15 2017 Win64"):
+
+    # write the cpp file. This functions creates a dictionary with
+    # various information related to the indexing in the opensim model
+    IO_indices = writeCppFile(pathOpenSimModel, outputDir, jointsOrder,
+                                    coordinatesOrder, exportGRFs,
+                                    export3DSegmentOrigins,
+                                    exportGRMs,exportSeparateGRFs,
+                                    exportContactPowers,
+                                    outputFilename)
+    all_coordi = IO_indices['coordi'] # dict with indexing coordinates in model
+    jointi = IO_indices['jointi']
+    joint_isTra = jointi['translations'] # translation dofs
+    nCoordinates = IO_indices['nCoordinates'] # number of coordinates in model
+    coordinatesOrder = IO_indices['coordinatesOrder'] # order of the joint coordinates
+
+    # %% Build external Function (.dll file).
+    buildExternalFunction(outputFilename, outputDir,
+                          3 * nCoordinates,
+                          compiler=compiler)
+
+    # %% Verification
+    # Run ID with the .osim file and verify that we can get the same torques
+    # as with the external function.
+    VerifyInverseDynamics(pathOpenSimModel, outputDir, pathID,
+                          coordinatesOrder, outputFilename,
+                          all_coordi, joint_isTra, nCoordinates)
+
+    # optional: write a .mat file with all input-output information
+    modelinfo2matfile(outputDir, IO_indices, outputFilename)
+
+
+def VerifyInverseDynamics(pathOpenSimModel, outputDir, pathID,
+                          coordinatesOrder=[], outputFilename='F',
+                          all_coordi = {}, joint_isTra = [],
+                          nCoordinates = []):
+    # %% Verification
+    # Run ID with the .osim file and verify that we can get the same torques
+    # as with the external function.
+    model = opensim.Model(pathOpenSimModel)
+    model.initSystem()
+    coordinateSet = model.getCoordinateSet()
+
+    # Extract torques from external function.
+    F = ca.external('F', os.path.join(outputDir, outputFilename + '.dll'))
+    vec1 = np.zeros((nCoordinates * 2, 1))
+    vec1[::2, :] = 0.05
+    if 'pelvis_ty' in all_coordi:
+        vec1[(all_coordi['pelvis_ty'] - 1) * 2, :] = -0.05
+    vec2 = np.zeros((nCoordinates, 1))
+    vec3 = np.concatenate((vec1, vec2))
+    ID_F = (F(vec3)).full().flatten()[:nCoordinates]
+
+    # Generate .mot file with same position inputs
+    mot_file = 'Verify_' + outputFilename + '.mot'
+    path_mot = os.path.join(pathID, mot_file)
+
+    if not os.path.isfile(path_mot):
+        labels = ['time'] + coordinatesOrder
+        vec4 = vec1[::2, :]
+        data_coords = vec4.repeat(10, axis=1)
+        data_time = np.zeros((1, 10))
+        data_time[:, :] = np.arange(0.01, 0.11, 0.01)
+        data = np.concatenate((data_time.T, data_coords.T), axis=1)
+        numpy2storage(labels, data, path_mot)
+
+    pathGenericIDSetupFile = os.path.join(pathID, "SetupID.xml")
+    idTool = opensim.InverseDynamicsTool(pathGenericIDSetupFile)
+    idTool.setName("ID_withOsimAndIDTool")
+    idTool.setModelFileName(pathOpenSimModel)
+    idTool.setResultsDir(outputDir)
+    idTool.setCoordinatesFileName(path_mot)
+    idTool.setOutputGenForceFileName("ID_withOsimAndIDTool.sto")
+    pathSetupID = os.path.join(outputDir, "SetupID.xml")
+    idTool.printToXML(pathSetupID)
+
+    command = 'opensim-cmd' + ' run-tool ' + pathSetupID
+    os.system(command)
+
+    # Extract torques from .osim + ID tool.
+    headers = []
+    nCoordinatesAll = coordinateSet.getSize()
+    for coord in range(nCoordinatesAll):
+        if all_coordi[coordinateSet.get(coord).getName()] in joint_isTra:
+            suffix_header = "_force"
+        else:
+            suffix_header = "_moment"
+        headers.append(coordinateSet.get(coord).getName() + suffix_header)
+
+    from utilities import storage2df
+    ID_osim_df = storage2df(os.path.join(outputDir,
+                                         "ID_withOsimAndIDTool.sto"), headers)
+    ID_osim = np.zeros((nCoordinates))
+    for count, coordinateOrder in enumerate(coordinatesOrder):
+        if all_coordi[coordinateOrder] in joint_isTra:
+            suffix_header = "_force"
+        else:
+            suffix_header = "_moment"
+        ID_osim[count] = ID_osim_df.iloc[0][coordinateOrder + suffix_header]
+
+    # Assert we get the same torques.
+    assert (np.max(np.abs(ID_osim - ID_F)) < 1e-6), "error F vs ID tool & osim"
+
+
+def writeCppFile(pathOpenSimModel, outputDir,jointsOrder=[],
+                 coordinatesOrder=[], exportGRFs=False,
+                 export3DSegmentOrigins=[],
+                 exportGRMs=False,
+                 exportSeparateGRFs=False,
+                 exportContactPowers=False,
+                 outputFilename='F'):
     # %% Paths.
     os.makedirs(outputDir, exist_ok=True)
     pathOutputFile = os.path.join(outputDir, outputFilename + ".cpp")
-    pathOutputFile_IO = os.path.join(outputDir, outputFilename + "_IO.mat")
 
     # %% Generate external Function (.cpp file).
     model = opensim.Model(pathOpenSimModel)
@@ -401,7 +509,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                 coordi = []
                 try:
                     c_joint = jointSet.get(jointOrder)
-                    c_joint_name = c_joint.getName();
+                    c_joint_name = c_joint.getName()
                     parent_frame = c_joint.get_frames(0)
                     parent_frame_name = parent_frame.getParentFrame().getName()
 
@@ -663,7 +771,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     f.write('\n')
                     count += 1
 
-        
+
         if exportContactPowers:
             f.write('\t/// Contact spheres deformation power.\n')
             count = 0
@@ -688,7 +796,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     c_force_elt_name, geo1_frameName, c_force_elt_name))
                     f.write('\tosim_double_adouble P_HC_y_%i = %s_velocity_G[1]*GRF_%i[1][1];' % (count, c_force_elt_name, count))
                     # f.write('\tosim_double_adouble P_HC_y_%i = %s_velocity_G[1];' % (count, c_force_elt_name))
-                    
+
                     # f.write('\tVec3 %s_locationCP_G = %s_location_G - %s_radius * normal;\n' % (
                     # c_force_elt_name, c_force_elt_name, c_force_elt_name))
                     # f.write('\tVec3 locationCP_G_adj_%i = %s_locationCP_G - 0.5*%s_locationCP_G[1] * normal;\n' % (
@@ -707,7 +815,7 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
                     #     raise ValueError("Cannot identify contact side")
                     f.write('\n')
                     count += 1
-        
+
         f.write('\t/// Outputs.\n')
         f.write('\t/// Residual forces (OpenSim and Simbody have different state orders).\n')
         f.write('\tauto indicesSimbodyInOS = getIndicesSimbodyInOS(*model);\n')
@@ -723,6 +831,8 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         jointi['torso'] = jointi_torso
         IO_indices = {'jointi': jointi}
         IO_indices['coordi'] = all_coordi
+        IO_indices['nCoordinates'] = nCoordinates
+        IO_indices['coordinatesOrder'] = coordinatesOrder
 
         # if export2DSegmentOrigins:
         #    f.write('\t/// 2D segment origins.\n')
@@ -806,78 +916,14 @@ def generateExternalFunction(pathOpenSimModel, outputDir, pathID,
         f.write('\treturn 0;\n')
         f.write('}\n')
 
+    # return output
+    return IO_indices
+
+def modelinfo2matfile(outputDir, IO_indices, outputFilename='F'):
+    # output matfile
+    pathOutputFile_IO = os.path.join(outputDir, outputFilename + "_IO.mat")
     # %% Save IO indices to .mat file
     sio.savemat(pathOutputFile_IO, {'IO': IO_indices})
-
-    # %% Build external Function (.dll file).
-    buildExternalFunction(outputFilename, outputDir,
-                          3 * nCoordinates,
-                          compiler=compiler)
-
-    # %% Verification
-    # Run ID with the .osim file and verify that we can get the same torques
-    # as with the external function.
-
-    # Extract torques from external function.
-    F = ca.external('F', os.path.join(outputDir, outputFilename + '.dll'))
-    vec1 = np.zeros((nCoordinates * 2, 1))
-    vec1[::2, :] = 0.05
-    if 'pelvis_ty' in all_coordi:
-        vec1[(all_coordi['pelvis_ty'] - 1) * 2, :] = -0.05
-    vec2 = np.zeros((nCoordinates, 1))
-    vec3 = np.concatenate((vec1, vec2))
-    ID_F = (F(vec3)).full().flatten()[:nCoordinates]
-
-    # Generate .mot file with same position inputs
-    mot_file = 'Verify_' + outputFilename + '.mot'
-    path_mot = os.path.join(pathID, mot_file)
-
-    if not os.path.isfile(path_mot):
-        labels = ['time'] + coordinatesOrder
-        vec4 = vec1[::2, :]
-        data_coords = vec4.repeat(10, axis=1)
-        data_time = np.zeros((1, 10))
-        data_time[:, :] = np.arange(0.01, 0.11, 0.01)
-        data = np.concatenate((data_time.T, data_coords.T), axis=1)
-        numpy2storage(labels, data, path_mot)
-
-    pathGenericIDSetupFile = os.path.join(pathID, "SetupID.xml")
-    idTool = opensim.InverseDynamicsTool(pathGenericIDSetupFile)
-    idTool.setName("ID_withOsimAndIDTool")
-    idTool.setModelFileName(pathOpenSimModel)
-    idTool.setResultsDir(outputDir)
-    idTool.setCoordinatesFileName(path_mot)
-    idTool.setOutputGenForceFileName("ID_withOsimAndIDTool.sto")
-    pathSetupID = os.path.join(outputDir, "SetupID.xml")
-    idTool.printToXML(pathSetupID)
-
-    command = 'opensim-cmd' + ' run-tool ' + pathSetupID
-    os.system(command)
-
-    # Extract torques from .osim + ID tool.
-    headers = []
-    nCoordinatesAll = coordinateSet.getSize()
-    for coord in range(nCoordinatesAll):
-        if all_coordi[coordinateSet.get(coord).getName()] in joint_isTra:
-            suffix_header = "_force"
-        else:
-            suffix_header = "_moment"
-        headers.append(coordinateSet.get(coord).getName() + suffix_header)
-
-    from utilities import storage2df
-    ID_osim_df = storage2df(os.path.join(outputDir,
-                                         "ID_withOsimAndIDTool.sto"), headers)
-    ID_osim = np.zeros((nCoordinates))
-    for count, coordinateOrder in enumerate(coordinatesOrder):
-        if all_coordi[coordinateOrder] in joint_isTra:
-            suffix_header = "_force"
-        else:
-            suffix_header = "_moment"
-        ID_osim[count] = ID_osim_df.iloc[0][coordinateOrder + suffix_header]
-
-    # Assert we get the same torques.
-    assert (np.max(np.abs(ID_osim - ID_F)) < 1e-6), "error F vs ID tool & osim"
-
 
 # %% Generate c-code with external function (and its Jacobian).
 def generateF(dim):
@@ -890,7 +936,6 @@ def generateF(dim):
     cg.add(F)
     cg.add(F.jacobian())
     cg.generate()
-
 
 # %% Build/compile external function.
 def buildExternalFunction(filename, CPP_DIR, nInputs,
@@ -944,7 +989,6 @@ def buildExternalFunction(filename, CPP_DIR, nInputs,
     shutil.rmtree(pathBuild)
     shutil.rmtree(path_external_functions_filename_install)
     shutil.rmtree(path_external_functions_filename_build)
-
 
 # %% From .sto file to numpy array.
 def storage2numpy(storage_file, excess_header_entries=0):

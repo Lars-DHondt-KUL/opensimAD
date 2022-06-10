@@ -100,9 +100,6 @@ exportGRMs = True
 # Set False or do not pass as argument to not export those variables.
 exportContactPowers = True
 
-
-
-
 # %% Generate external function.
 generateExternalFunction(pathOpenSimModel, pathExample, pathID, 
                          jointsOrder=jointsOrder,
