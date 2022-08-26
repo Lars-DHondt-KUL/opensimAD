@@ -32,7 +32,7 @@ Here we provide code and examples to generate external functions automatically g
     - Open an Anaconda prompt
     - Activate environment: `conda activate opensimAD`
     - Install required packages: `pip install scipy`
-   
+
 #### If you do not have the main version of OpenSimAD
   - Third-party software:
     - CMake (make sure cmake.exe is in your path)
@@ -63,6 +63,19 @@ Here we provide code and examples to generate external functions automatically g
 ### Troubleshooting
 - On KU Leuven computers, run opensimAD from the \_MyPrograms folder to prevent issues with group policy.
 - When getting an error message containing "opensim" or "simbody", check your [OpenSim installation](https://simtk-confluence.stanford.edu:8443/display/OpenSim/Scripting+in+Python) and path settings are correct.
+
+### Build executable
+
+We use an executable version of this code in the PredSim repository (). To build the executable to you have to 
+
+- Add Pyinstaller to you conda environment (https://pyinstaller.org/en/stable/). To do so;
+- 1. open anaconda promp
+- 2. Activate environment: `conda activate opensimAD`
+- 3. install pyinstaller:  `conda install -c conda-forge pyinstaller`
+- Create the exectutable using pyisntaller
+  1. In your python IDE or anaconda promp run: `pyinstaller osimtocpp.py`
+  2. In your python IDE or anaconda promp run: `pyinstaller genF.py`
+- Combiner the binaries in one folder. You can find them in .\dist\osimtocppexe (if you did not specify a path when running the pyinstaller).
 
 ## Tutorial
   - TODO: You can find here a tutorial describing how to generate a predictive simulation of walking. The tutorial describes all the steps required, including the use of OpenSimAD to general external functions for use when formulating the trajectory optimization problem underlying the predictive simulation. 
