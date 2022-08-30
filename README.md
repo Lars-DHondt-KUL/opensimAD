@@ -73,7 +73,7 @@ We use an executable version of this code in the PredSim repository (). To build
 - 2. Activate environment: `conda activate opensimAD`
 - 3. install pyinstaller:  `conda install -c conda-forge pyinstaller`
 - Create the exectutable using pyisntaller
-  1. In your python IDE or anaconda promp run: `pyinstaller osimtocpp.py`
+  1. In your python IDE or anaconda promp run: `pyinstaller osimtocppexe.py`
   2. In your python IDE or anaconda promp run: `pyinstaller genF.py`
 - Combine the binaries in one folder. You can find them in .\dist\osimtocppexe (if you did not specify a path when running the pyinstaller).
 
