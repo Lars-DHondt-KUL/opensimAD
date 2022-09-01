@@ -712,7 +712,10 @@ def writeCppFile(pathOpenSimModel, outputDir,jointsOrder=[],
         if exportGRFs:
             f.write('\t/// Ground reaction forces.\n')
             f.write('\tSpatialVec GRF_r;\n')
-            f.write('\tSpatialVec GRF_l;\n\n')
+            f.write('\tSpatialVec GRF_l;\n')
+            f.write('\tGRF_r.setToZero();\n')
+            f.write('\tGRF_l.setToZero();\n\n')
+            
             count = 0
             for i in range(forceSet.getSize()):
                 c_force_elt = forceSet.get(i)
@@ -731,7 +734,10 @@ def writeCppFile(pathOpenSimModel, outputDir,jointsOrder=[],
             f.write('\t/// Ground reaction moments.\n')
             f.write('\tSpatialVec GRM_r;\n')
             f.write('\tSpatialVec GRM_l;\n')
+            f.write('\tGRM_r.setToZero();\n')
+            f.write('\tGRM_l.setToZero();\n')
             f.write('\tVec3 normal(0, 1, 0);\n\n')
+            
             count = 0
             geo1_frameNames = []
             for i in range(forceSet.getSize()):
