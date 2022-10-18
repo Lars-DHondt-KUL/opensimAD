@@ -43,7 +43,7 @@ Here we provide code and examples to generate external functions automatically g
     - Create environment: `conda create -n opensimAD pip spyder python=3.8`
     - Activate environment: `conda activate opensimAD`
     - Navigate to the folder where you want to download the code: eg. `cd Documents`
-    - Download code: `git clone https://github.com/antoinefalisse/opensimAD.git`
+    - Download code: `git clone https://github.com/Lars-DHondt-KUL/opensimAD.git`
     - Navigate to the folder: `cd opensimAD`
     - Install required packages: `python -m pip install -r requirements.txt`
     - Install OpenSim by following the instructions [here](https://simtk-confluence.stanford.edu:8443/display/OpenSim/Scripting+in+Python)
