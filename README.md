@@ -69,13 +69,16 @@ Here we provide code and examples to generate external functions automatically g
 We use an executable version of this code in the PredSim repository (). To build the executable to you have to 
 
 - Add Pyinstaller to you conda environment (https://pyinstaller.org/en/stable/). To do so:
-- 1. Open anaconda promp
-- 2. Activate environment: `conda activate opensimAD`
-- 3. install pyinstaller:  `conda install -c conda-forge pyinstaller`
-- Create the exectutable using pyisntaller
-  1. In your python IDE or anaconda promp run: `pyinstaller osimtocppexe.py`
-  2. In your python IDE or anaconda promp run: `pyinstaller genF.py`
-- Combine the binaries in one folder. You can find them in .\dist\osimtocppexe (if you did not specify a path when running the pyinstaller).
+  1. Open anaconda promp
+  2. Activate environment: `conda activate opensimAD`
+  3. install pyinstaller:  `conda install -c conda-forge pyinstaller`
+- Create the exectutable using pyinstaller. (Assuming this repository is located at `C:\GBW_MyPrograms\OpenSimAD`, and the executables should go in `C:\GBW_MyPrograms\Osim2Dll_exe`.)
+  1. Open anaconda prompt
+  2. Activate environment: `conda activate opensimAD`
+  3. Change working directory to this repository: `cd C:\GBW_MyPrograms\OpenSimAD`
+  4. Create an executable from osimtocppexe: `pyinstaller osimtocppexe.py  --distpath C:\GBW_MyPrograms\Osim2Dll_exe`
+  5. Create an executable from genF: `pyinstaller genF.py  --distpath C:\GBW_MyPrograms\Osim2Dll_exe`
+- Combine the binaries in one folder: copy the content of `C:\GBW_MyPrograms\Osim2Dll_exe\genF` and `C:\GBW_MyPrograms\Osim2Dll_exe\osimtocppexe` into a new folder `C:\GBW_MyPrograms\Osim2Dll_exe\Cpp2Dll_Bin`. There will be some duplicate files.
 
 ## Tutorial
   - TODO: You can find here a tutorial describing how to generate a predictive simulation of walking. The tutorial describes all the steps required, including the use of OpenSimAD to general external functions for use when formulating the trajectory optimization problem underlying the predictive simulation. 
