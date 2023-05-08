@@ -1,0 +1,161 @@
+function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
+    jointsOrder, coordinatesOrder,export3DPositions, export3DVelocities,...
+    exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers,...
+    outputFilename, compiler, verbose_mode, verify_ID)
+% --------------------------------------------------------------------------
+% generateExternalFunction
+%   This function uses OpenSimAD to generate a CasADi external function. 
+%   Given an OpenSim model provided as an .osim file, this script generates
+%   a C++ file with a function F building the musculoskeletal model 
+%   programmatically and running inverse dynamics. The C++ file is then 
+%   compiled as an .exe, which when run generates the expression graph 
+%   underlying F. From this expression graph, CasADi can generate C code 
+%   containing the function F and its Jacobian in a format understandable 
+%   by CasADi. This code is finally compiled as a .dll that can be imported 
+%   when formulating trajectory optimization problems with CasADi.
+%
+%   The function F takes as:
+%       - INPUTS: 
+%           - joint positions and velocities (intertwined)
+%           - joint accelerations
+%       - OUTPUTS:
+%           - joint torques
+%           - (optional) other variables exported from the model 
+%
+%
+% INPUT:
+%   - pathOpenSimModel -
+%   * full path to OpenSim model file (.osim) [char]
+%
+%   - outputDir
+%   * full path to directory where the generated file shuld be saved [char]
+%
+%   - outputFilename
+%   * name of the generated file [char]
+%
+%   - jointsOrder
+%   * names of joints in order they should appear in the external function
+%   input/output. Pass empty to use order they are in the model file. 
+%   [cell array of char]
+%
+%   - coordinatesOrder
+%   * names of coordinate in order they should appear in the external 
+%   function input/output. Order should be consistent with jointsOrder.
+%   Pass empty to use order they are in the model file. [cell array of char]
+%
+%   - export3DPositions
+%   * points of which the position in ground frame should be exported. 
+%   [array of structs] Example input:
+%       export3DPositions(1).body = 'tibia_l';
+%       export3DPositions(1).point_in_body = [0, -0.012, 0];
+%       export3DPositions(1).name = 'left_shin';
+%       export3DPositions(2).body = 'tibia_r';
+%       export3DPositions(2).point_in_body = [0, -0.012, 0];
+%       export3DPositions(2).name = 'right_shin';
+%
+%   - export3DVelocities
+%   * points of which the velocity in ground frame should be exported. 
+%   [array of structs] Example input:
+%       export3DVelocities(1).body = 'tibia_l';
+%       export3DVelocities(1).point_in_body = [0, -0.012, 0];
+%       export3DVelocities(1).name = 'left_shin';
+%
+%   - exportGRFs
+%   * export total ground reaction force of left and right side. [bool]
+%
+%   - exportGRMs
+%   * export total ground reaction moment of left and right side. [bool]
+%
+%   - exportSeparateGRFs
+%   * export ground reaction force of each contact element. [bool]
+%
+%   - exportContactPowers
+%   * export deformation power of each contact element. [bool]
+%
+%   - compiler -
+%   * command prompt argument for the compiler. [char]
+%   Example inputs:
+%       Visual studio 2015: 'Visual Studio 14 2015 Win64'
+%       Visual studio 2017: 'Visual Studio 15 2017 Win64'
+%       Visual studio 2017: 'Visual Studio 16 2019'
+%       Visual studio 2017: 'Visual Studio 17 2022'
+%
+%   - verbose_mode -
+%   * outputs from windows command prompt are printed to matlab command 
+%   window if true. [bool]
+%
+%   - verify_ID -
+%   * the generated function is verified versus the inverse dynamics tool
+%   in OpenSim if true. [bool]
+%
+%
+% OUTPUT:
+%   This function does not return outputs, but generates files. Assuming 
+%   outputFilename = 'filename', the following files are saved in the folder 
+%   given by outputDir. 
+%   - filename.dll -
+%   * file containing the CasADi external function. To get the function in
+%   matlab, use: F = external('F','filename.dll')
+%   This function takes a column vector as input, and returns a column 
+%   vector as output. For more info on external functions, 
+%   see https://web.casadi.org/docs/#using-the-generated-code
+%
+%   - filename.cpp -
+%   * source code for the .dll, you do not need this.
+%
+%   - filename.lib -
+%   * if you want to compile code that calls filename.dll, you need this.
+%
+%   - filename_IO.mat -
+%   * contains a struct (IO) where the fieldnames denote an output of the
+%   generated function, and the numeric values are the corresponding
+%   indices of the output vector of the generated function.
+%   The input indices can be contructed as:
+%       positions: IO.coordi.(name)*2-1
+%       velocities: IO.coordi.(name)*2
+%       acceleration: IO.coordi.(name) * IO.nCoordinates*2
+% 
+%
+% Note: 
+%   This code ignores the contribution of the patella to the inverse
+%   dynamics. Assuming the patella bodies are named 'patella_l' and
+%   'patella_r', the joint names include 'patel', and the coordinate names
+%   are 'knee_angle_ls_beta' and 'knee_angle_rs_beta'.
+%
+% Reference: 
+%   Falisse A, Serrancolí G, et al. (2019) Algorithmic differentiation 
+%   improves the computational efficiency of OpenSim-based trajectory 
+%   optimization of human movement. PLoS ONE 14(10): e0217730. 
+%   https://doi.org/10.1371/journal.pone.0217730
+%
+% Original author: Lars D'Hondt (based on code by Antoine Falisse)
+% Original date: 8/May/2023
+%
+% Last edit by: 
+% Last edit date: 
+% --------------------------------------------------------------------------
+
+%% write the cpp file.
+writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
+    jointsOrder, coordinatesOrder, export3DPositions, export3DVelocities,...
+    exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers);
+
+%% build expression graph (foo.py)
+[fooPath] = buildExpressionGraph(outputFilename, outputDir, compiler, verbose_mode);
+
+%% generate code with expression graph and derivative information (foo_jac.c)
+load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
+nInputs = 3*IO.nCoordinates; % number of coordinates in model
+generateF(nInputs, fooPath);
+
+%% Build external Function (.dll file).
+buildExternalFunction(outputFilename, outputDir, compiler, verbose_mode);
+
+%% Verification
+% Run ID with the .osim file and verify that we can get the same torques as
+% with the external function.
+if verify_ID
+    VerifyInverseDynamics(pathOpenSimModel, outputDir, outputFilename, verbose_mode);
+end
+
+end

@@ -1,0 +1,151 @@
+function [] = VerifyInverseDynamics(pathOpenSimModel, outputDir, outputFilename, verbose_mode)
+% --------------------------------------------------------------------------
+% VerifyInverseDynamics
+%   Compare the inverse dynamics outputs of the external function versus
+%   OpenSim ID Tool.
+%
+%
+% INPUT:
+%   - pathOpenSimModel -
+%   * full path to OpenSim model file (.osim) [char]
+%
+%   - outputDir
+%   * full path to directory where the generated file shuld be saved [char]
+%
+%   - outputFilename
+%   * name of the generated file [char]
+%
+%   - verbose_mode -
+%   * outputs from windows command prompt are printed to matlab command 
+%   window if true. [bool]
+%
+%
+% OUTPUT:
+%   - (This function does not return output arguments) -
+%
+% Reference: 
+%   Falisse A, Serrancolí G, et al. (2019) Algorithmic differentiation 
+%   improves the computational efficiency of OpenSim-based trajectory 
+%   optimization of human movement. PLoS ONE 14(10): e0217730. 
+%   https://doi.org/10.1371/journal.pone.0217730
+%
+% Original author: Lars D'Hondt (based on code by Antoine Falisse)
+% Original date: 8/May/2023
+%
+% Last edit by: 
+% Last edit date: 
+% --------------------------------------------------------------------------
+
+
+import org.opensim.modeling.*;
+import casadi.*
+
+[pathUtilities,~,~] = fileparts(mfilename('fullpath'));
+[pathMain,~,~] = fileparts(pathUtilities);
+pathID = fullfile(pathMain, 'InverseDynamics');
+
+% load input/output indices information
+load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
+
+coordinatesOrder = IO.coordinatesOrder;
+all_coordi = IO.coordi;
+joint_isTra = IO.jointi.translations;
+nCoordinates = IO.nCoordinates;
+
+% Run ID with the .osim file and verify that we can get the same torques as with the external function.
+model = Model(pathOpenSimModel);
+model.initSystem();
+coordinateSet = model.getCoordinateSet();
+
+% Extract torques from external function.
+F = external('F', replace(fullfile(outputDir, [outputFilename, '.dll']),'\','/'));
+vec1 = zeros(nCoordinates * 2, 1);
+vec1(1:2:end) = 0.05;
+if isfield(all_coordi, 'pelvis_ty')
+    vec1((all_coordi.pelvis_ty - 1) * 2 + 1) = -0.05;
+end
+vec2 = zeros(nCoordinates, 1);
+vec3 = [vec1; vec2];
+ID_F = full(F(vec3));
+ID_F = ID_F(1:nCoordinates);
+
+% Generate .mot file with same position inputs
+mot_file = ['Verify_', outputFilename, '.mot'];
+path_mot = fullfile(pathID, mot_file);
+
+if ~exist(path_mot, 'file')
+    labels = ['time', coordinatesOrder];
+    vec4 = vec1(1:2:end);
+    data_coords = repmat(vec4, 1, 10);
+    data_time = zeros(1, 10);
+    data_time(1, :) = 0.01:0.01:0.1;
+    data = [data_time', data_coords'];
+
+    q.labels = labels;
+    q.data = data;
+    q.inDeg = 'no';
+    write_motionFile_v40(q, path_mot)
+end
+
+pathGenericIDSetupFile = fullfile(pathID, 'SetupID.xml');
+idTool = InverseDynamicsTool(pathGenericIDSetupFile);
+idTool.setName('ID_withOsimAndIDTool');
+idTool.setModelFileName(pathOpenSimModel);
+idTool.setResultsDir(outputDir);
+idTool.setCoordinatesFileName(path_mot);
+idTool.setOutputGenForceFileName('ID_withOsimAndIDTool.sto');
+pathSetupID = fullfile(outputDir, 'SetupID.xml');
+idTool.print(pathSetupID);
+
+command = ['opensim-cmd', ' run-tool ', pathSetupID];
+if verbose_mode
+    system(command);
+else
+    [~,~] = system(command);
+end
+
+% Extract torques from .osim + ID tool.
+headers = {};
+nCoordinatesAll = coordinateSet.getSize();
+for coord = 0:nCoordinatesAll-1
+    if any(all_coordi.(char(coordinateSet.get(coord).getName())) == joint_isTra)
+        suffix_header = '_force';
+    else
+        suffix_header = '_moment';
+    end
+    headers{end+1} = [char(coordinateSet.get(coord).getName()), suffix_header];
+end
+
+% Extract data
+data = importdata(fullfile(outputDir, 'ID_withOsimAndIDTool.sto'));
+% Convert to table
+ID_osim_df = table(data.data(:, 1), 'VariableNames', {'time'});
+for i = 1:numel(headers)
+    idx = strcmp(data.colheaders,headers{i});
+    ID_osim_df.(headers{i}) = data.data(:, idx);
+end
+
+ID_osim = zeros(nCoordinates, 1);
+for count = 1:numel(coordinatesOrder)
+    coordinateOrder = coordinatesOrder{count};
+    if any(all_coordi.(coordinateOrder) == joint_isTra)
+        suffix_header = '_force';
+    else
+        suffix_header = '_moment';
+    end
+    ID_osim(count) = ID_osim_df.([coordinateOrder suffix_header])(1);
+end
+
+% Assert we get the same torques.
+test_diff = max(abs(ID_osim - ID_F)) < 1e-6;
+if test_diff
+    disp('ID outputs match')
+    delete(fullfile(outputDir, 'ID_withOsimAndIDTool.sto'));
+    delete(path_mot);
+    delete(pathSetupID);
+else
+    warning('error F vs ID tool & osim');
+end
+
+
+end
