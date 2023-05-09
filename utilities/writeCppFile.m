@@ -806,7 +806,7 @@ if exportSeparateGRFs
     for i_GRF = 1:nContacts
         fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_%s[1][i]);\n', count_acc, num2str(i_GRF-1));
         tmp = outputCount + count_acc;
-        IO_GRFs.contact_sphere_{i_GRF} = tmp:tmp+2;
+        IO_GRFs.(['contact_sphere_' num2str(i_GRF-1)]) = tmp:tmp+2;
         count_acc = count_acc + 3;
         count_GRF = count_GRF + 1;
     end
