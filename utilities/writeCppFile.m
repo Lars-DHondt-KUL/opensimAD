@@ -357,17 +357,17 @@ for i = 0:jointSet.getSize()-1
                 fprintf(fid, '\tst_%s[%i].setFunction(new PolynomialFunction(st_%s_%i_coeffs_vec));\n', c_joint.getName(), coord, c_joint.getName(), coord);
 
             elseif strcmp(dofSel_f.getConcreteClassName(), 'MultiplierFunction')
-                dofSel_f_obj = opensim.MultiplierFunction.safeDownCast(dofSel_f);
+                dofSel_f_obj = MultiplierFunction.safeDownCast(dofSel_f);
                 dofSel_f_obj_scale = dofSel_f_obj.getScale();
                 dofSel_f_obj_f = dofSel_f_obj.getFunction();
                 dofSel_f_obj_f_name = dofSel_f_obj_f.getConcreteClassName();
                 if strcmp(dofSel_f_obj_f_name, 'Constant')
-                    dofSel_f_obj_f_obj = opensim.Constant.safeDownCast(dofSel_f_obj_f);
+                    dofSel_f_obj_f_obj = Constant.safeDownCast(dofSel_f_obj_f);
                     dofSel_f_obj_f_obj_value = dofSel_f_obj_f_obj.getValue();
                     fprintf(fid, '\tst_%s[%i].setFunction(new MultiplierFunction(new Constant(%.20f), %.20f));\n', c_joint.getName(), coord, dofSel_f_obj_f_obj_value, dofSel_f_obj_scale);
                 elseif strcmp(dofSel_f_obj_f_name, 'PolynomialFunction')
                     fprintf(fid, '\tst_%s[%i].setCoordinateNames(OpenSim::Arraystd::string("%s", 1, 1));\n', c_joint.getName(), coord, c_coord_name);
-                    dofSel_f_obj_f_obj = opensim.PolynomialFunction.safeDownCast(dofSel_f_obj_f);
+                    dofSel_f_obj_f_obj = PolynomialFunction.safeDownCast(dofSel_f_obj_f);
                     dofSel_f_obj_f_coeffs = dofSel_f_obj_f_obj.getCoefficients().getAsMat();
                     c_nCoeffs = size(dofSel_f_obj_f_coeffs,1);
                     if c_nCoeffs == 2
@@ -382,7 +382,8 @@ for i = 0:jointSet.getSize()-1
                         fprintf(fid, '\tosim_double_adouble st_%s_%i_coeffs[%i] = {%.20f, %.20f, %.20f, %.20f, %.20f, %.20f, %.20f}; \n', c_joint.getName(), coord, c_nCoeffs, dofSel_f_coeffs(1), dofSel_f_coeffs(2), dofSel_f_coeffs(3), dofSel_f_coeffs(4), dofSel_f_coeffs(5), dofSel_f_coeffs(6), dofSel_f_coeffs(7));
                     else
                         error('TODO. Current implementation supports polynomials of order 2, 3, 4, 5, and 7.');
-                end
+                    end
+                    
                     fprintf(fid, '\tVector st_%s_%i_coeffs_vec(%i); \n', c_joint.getName(), coord, c_nCoeffs);
                     fprintf(fid, '\tfor (int i = 0; i < %i; ++i) st_%s_%i_coeffs_vec[i] = st_%s_%i_coeffs[i]; \n', c_nCoeffs, c_joint.getName(), coord, c_joint.getName(), coord);
                     fprintf(fid,  '\tst_%s[%i].setFunction(new MultiplierFunction(new PolynomialFunction(st_%s_%i_coeffs_vec), %.20f));\n', c_joint.getName(), coord, c_joint.getName(), coord, dofSel_f_obj_scale);
