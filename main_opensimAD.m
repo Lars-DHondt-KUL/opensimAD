@@ -43,6 +43,9 @@ addpath(fullfile(pathMain,'utilities'))
 % Provide path to OpenSim model.
 pathOpenSimModel = fullfile(pathMain, 'examples', 'Hamner_modified.osim');
 
+% Path to folder for outputs
+outputDir = fullfile(pathMain, 'examples');
+
 % Output file name
 outputFilename = 'F_test';
 
@@ -68,7 +71,17 @@ coordinatesOrder = [];
 % Export 3D positions and velocities of points w.r.t. ground reference.
 % Leave empty to not export those variables.
 export3DPositions = [];
+export3DPositions(1).body = 'tibia_l';
+export3DPositions(1).point_in_body = [0, -0.012, 0];
+export3DPositions(1).name = 'left_shin';
+export3DPositions(2).body = 'tibia_r';
+export3DPositions(2).point_in_body = [0, -0.012, 0];
+export3DPositions(2).name = 'right_shin';
+
 export3DVelocities = [];
+export3DVelocities(1).body = 'tibia_l';
+export3DVelocities(1).point_in_body = [0, -0.012, 0];
+export3DVelocities(1).name = 'left_shin';
 
 % Export total GRFs.
 % If true, right and left 3D GRFs (in this order) are exported.
@@ -91,7 +104,7 @@ exportContactPowers = true;
 
 
 %% Call generateExternalFunction function
-generateExternalFunction(pathOpenSimModel, pathExample, jointsOrder,...
+generateExternalFunction(pathOpenSimModel, outputDir, jointsOrder,...
     coordinatesOrder, export3DPositions, export3DVelocities, exportGRFs,...
     exportGRMs, exportSeparateGRFs, exportContactPowers, outputFilename, compiler,...
     verbose_mode, verify_ID);
