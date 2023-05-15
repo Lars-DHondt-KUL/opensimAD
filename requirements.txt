@@ -1,4 +1,0 @@
-numpy
-casadi
-pandas
-scipy
