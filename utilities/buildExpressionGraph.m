@@ -10,7 +10,7 @@ function [pathFoo] = buildExpressionGraph(outputFilename,...
 %   * name of the generated file [char]
 %
 %   - outputDir -
-%   * full path to directory where the generated file shuld be saved [char]
+%   * full path to directory where the generated file should be saved [char]
 %
 %   - compiler -
 %   * command prompt argument for the compiler. [char]

@@ -1,7 +1,7 @@
 function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
     jointsOrder, coordinatesOrder,export3DPositions, export3DVelocities,...
     exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers,...
-    outputFilename, compiler, verbose_mode, verify_ID)
+    outputFilename, compiler, verbose_mode, verify_ID, secondOrderDerivatives)
 % --------------------------------------------------------------------------
 % generateExternalFunction
 %   This function uses OpenSimAD to generate a CasADi external function. 
@@ -28,7 +28,7 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %   * full path to OpenSim model file (.osim) [char]
 %
 %   - outputDir -
-%   * full path to directory where the generated file shuld be saved [char]
+%   * full path to directory where the generated file should be saved [char]
 %
 %   - outputFilename -
 %   * name of the generated file [char]
@@ -88,6 +88,12 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %   * the generated function is verified versus the inverse dynamics tool
 %   in OpenSim if true. [bool]
 %
+%   - secondOrderDerivatives -
+%   * The generated library always contains the expression graphs to evaluate
+%   the Jacobian of the external function. If this input is true, expression
+%   graphs for evaluating second derivative information are also added. Do 
+%   note that this greatly increases the compiling time, especially for models
+%   with many degrees of freedom. [bool]
 %
 % OUTPUT:
 %   This function does not return outputs, but generates files. Assuming 
@@ -146,7 +152,7 @@ writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
 %% generate code with expression graph and derivative information (foo_jac.c)
 load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
 nInputs = 3*IO.nCoordinates; % number of coordinates in model
-generateF(nInputs, fooPath);
+generateF(nInputs, fooPath, secondOrderDerivatives);
 
 %% Build external Function (.dll file).
 buildExternalFunction(fooPath, outputFilename, outputDir, compiler, verbose_mode);

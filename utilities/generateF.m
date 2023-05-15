@@ -1,4 +1,4 @@
-function [] = generateF(nInputs, fooPath)
+function [] = generateF(nInputs, fooPath, secondOrderDerivatives)
 % --------------------------------------------------------------------------
 % generateF
 %   Generates an expression graph of the function and its derivative
@@ -12,6 +12,9 @@ function [] = generateF(nInputs, fooPath)
 %   - fooPath -
 %   * path to foo.py [char]
 %
+%   - secondOrderDerivatives -
+%   * do you want to calculate 2nd derivatives of external function outputs 
+%   w.r.t. inputs? [bool]
 %
 % OUTPUT:
 %   - (This function does not return output arguments) -
@@ -36,8 +39,7 @@ function [] = generateF(nInputs, fooPath)
 % F = Function('F', {arg}, {y});
 % cg.add(F);
 % cg.add(F.jacobian());
-% % % Generate also forward, reverse, and forward-over-reverse to use a exact
-% % % Hessian
+% % % Generate also forward, reverse, and forward-over-reverse to use a exact Hessian
 % % Fr = F.reverse(1);
 % % cg.add(Fr);
 % % for i=0:6
@@ -54,7 +56,14 @@ function [] = generateF(nInputs, fooPath)
 [pathUtilities,~,~] = fileparts(mfilename('fullpath'));
 cd(fullfile(pathUtilities,'genF'))
 
-command = ['genF.exe "' fooPath '" ' num2str(nInputs)];
+% Make sure that booleans is compatible with python
+if secondOrderDerivatives
+    secondOrderDerivatives = 'True';
+else
+    secondOrderDerivatives = 'False';
+end
+
+command = ['genF.exe "' fooPath '" ' num2str(nInputs) ' ' secondOrderDerivatives];
 system(command);
 
 cd ..

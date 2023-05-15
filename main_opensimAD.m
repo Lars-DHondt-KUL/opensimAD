@@ -101,10 +101,14 @@ exportGRMs = true;
 % are exported. 
 exportContactPowers = true;
 
-
+% secondOrderDerivatives
+% The generated library always contains the expression graphs to evaluate
+% the Jacobian of the external function. If this input is true, expression
+% graphs for evaluating second derivative information are also added.
+secondOrderDerivatives = false;
 
 %% Call generateExternalFunction function
 generateExternalFunction(pathOpenSimModel, outputDir, jointsOrder,...
     coordinatesOrder, export3DPositions, export3DVelocities, exportGRFs,...
     exportGRMs, exportSeparateGRFs, exportContactPowers, outputFilename, compiler,...
-    verbose_mode, verify_ID);
+    verbose_mode, verify_ID, secondOrderDerivatives);

@@ -53,5 +53,7 @@ To compile this yourself:
   - Install pyinstaller:  `conda install -c conda-forge pyinstaller`
   - Create an executable from genF: `pyinstaller genF.py  --distpath C:/.../opensimAD/utilities`
 
+When running opensimAD, you can get an error from genF.exe that it cannot find casadi libraries. You then have to move the files from `./utilities/genF/casadi/` to `./utilities/genF/`.
+
 ## Source code
 The libraries were compiled from [here](https://github.com/antoinefalisse/opensim-core/tree/AD-recorder-work-py-install).
