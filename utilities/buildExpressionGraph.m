@@ -1,4 +1,4 @@
-function [pathBuildExternalFunction] = buildExpressionGraph(outputFilename,...
+function [pathFoo] = buildExpressionGraph(outputFilename,...
     outputDir, compiler, verbose_mode)
 % --------------------------------------------------------------------------
 % buildExpressionGraph
@@ -6,10 +6,10 @@ function [pathBuildExternalFunction] = buildExpressionGraph(outputFilename,...
 %
 %
 % INPUT:
-%   - outputFilename
+%   - outputFilename -
 %   * name of the generated file [char]
 %
-%   - outputDir
+%   - outputDir -
 %   * full path to directory where the generated file shuld be saved [char]
 %
 %   - compiler -
@@ -26,7 +26,7 @@ function [pathBuildExternalFunction] = buildExpressionGraph(outputFilename,...
 %
 %
 % OUTPUT:
-%   - pathBuildExternalFunction -
+%   - pathFoo -
 %   * path to the folder where foo.py is
 %
 % Reference: 
@@ -42,17 +42,21 @@ function [pathBuildExternalFunction] = buildExpressionGraph(outputFilename,...
 % Last edit date: 
 % --------------------------------------------------------------------------
 
+%% set paths
 [pathUtilities,~,~] = fileparts(mfilename('fullpath'));
 [pathMain,~,~] = fileparts(pathUtilities);
 pathBuildExpressionGraph = fullfile(pathMain, 'buildExpressionGraph');
 pathBuild = fullfile(pathMain, 'buildExpressionGraph', outputFilename);
 mkdir(pathBuild);
-pathBuildExternalFunction = fullfile(pathMain, 'buildExternalFunction');
 
 OpenSimAD_DIR = fullfile(pathMain, 'OpenSimAD-install');
 SDK_DIR = fullfile(OpenSimAD_DIR, 'sdk');
 BIN_DIR = fullfile(OpenSimAD_DIR, 'bin');
 
+path_bin_foo = fullfile(BIN_DIR, 'foo.py');
+pathFoo = pathBuild;
+
+%% use cmake to compile .cpp to .exe
 cd(pathBuild);
 cmd1 = ['cmake "', pathBuildExpressionGraph, '" -G "', compiler, '" -DTARGET_NAME:STRING="',...
     outputFilename, '" -DSDK_DIR:PATH="', SDK_DIR, '" -DCPP_DIR:PATH="', outputDir, '"'];
@@ -68,14 +72,50 @@ else
     [~,~] = system(cmd2);
 end
 
-cd(BIN_DIR);
-path_EXE = fullfile(pathBuild, 'RelWithDebInfo', [outputFilename '.exe']);
-system(['"' path_EXE '"']);
+%% run .exe to generate foo.py
+% Since it is hardcoded that the generated file is
+% ./opensimAD-install/bin/foo.py, this can cause problems when running
+% multiple opensimAD instances in parallel. To prevent this, we use a file
+% (lockFile.txt) to indicate when opensimAD is generating foo.py.
+lockFile = fullfile(BIN_DIR,'lockFile.txt');
+isLocked = isfile(lockFile);
+t0 = tic;
 
-path_external_filename_foo = fullfile(BIN_DIR, 'foo.py');
-copyfile(path_external_filename_foo, pathBuildExternalFunction);
+while isLocked
+    isLocked = isfile(lockFile);
+    pause(10)
 
-delete(path_external_filename_foo);
-rmdir(pathBuild, 's');
+    if toc(t0) > 300
+        error(['opensimAD timed out. Another instance of opensimAD took too ',...
+            'long to generate foo.py, or failed to delete its lockFile when done.'])
+    end
+end
+
+fid = fopen(lockFile,'w');
+fprintf(fid, ['Generating foo.py for ' outputFilename '.']);
+fprintf(fid, 'This file will be deleted after foo.py is generated and copied to its target folder.');
+fprintf(fid, ['Start: ' datestr(datetime,0)]);
+fclose(fid);
+
+try
+    cd(BIN_DIR);
+    path_EXE = fullfile(pathBuild, 'RelWithDebInfo', [outputFilename '.exe']);
+    system(['"' path_EXE '"']);
+    
+    copyfile(path_bin_foo, pathFoo);
+    delete(path_bin_foo);
+
+catch ME
+    % clean-up
+    if isfile(path_bin_foo)
+        delete(path_bin_foo)
+    end
+    delete(lockFile)
+
+    % error
+    rethrow(ME)
+end
+
+delete(lockFile)
 
 end

@@ -6,10 +6,10 @@ function [] = generateF(nInputs, fooPath)
 %
 %
 % INPUT:
-%   - nInputs
+%   - nInputs -
 %   * number of input arguments for the external function [double]
 %
-%   - fooPath
+%   - fooPath -
 %   * path to foo.py [char]
 %
 %

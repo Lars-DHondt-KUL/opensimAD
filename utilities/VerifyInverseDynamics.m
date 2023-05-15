@@ -9,10 +9,10 @@ function [] = VerifyInverseDynamics(pathOpenSimModel, outputDir, outputFilename,
 %   - pathOpenSimModel -
 %   * full path to OpenSim model file (.osim) [char]
 %
-%   - outputDir
+%   - outputDir -
 %   * full path to directory where the generated file shuld be saved [char]
 %
-%   - outputFilename
+%   - outputFilename -
 %   * name of the generated file [char]
 %
 %   - verbose_mode -

@@ -27,23 +27,23 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %   - pathOpenSimModel -
 %   * full path to OpenSim model file (.osim) [char]
 %
-%   - outputDir
+%   - outputDir -
 %   * full path to directory where the generated file shuld be saved [char]
 %
-%   - outputFilename
+%   - outputFilename -
 %   * name of the generated file [char]
 %
-%   - jointsOrder
+%   - jointsOrder -
 %   * names of joints in order they should appear in the external function
 %   input/output. Pass empty to use order they are in the model file. 
 %   [cell array of char]
 %
-%   - coordinatesOrder
+%   - coordinatesOrder -
 %   * names of coordinate in order they should appear in the external 
 %   function input/output. Order should be consistent with jointsOrder.
 %   Pass empty to use order they are in the model file. [cell array of char]
 %
-%   - export3DPositions
+%   - export3DPositions -
 %   * points of which the position in ground frame should be exported. 
 %   [array of structs] Example input:
 %       export3DPositions(1).body = 'tibia_l';
@@ -53,23 +53,23 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %       export3DPositions(2).point_in_body = [0, -0.012, 0];
 %       export3DPositions(2).name = 'right_shin';
 %
-%   - export3DVelocities
+%   - export3DVelocities -
 %   * points of which the velocity in ground frame should be exported. 
 %   [array of structs] Example input:
 %       export3DVelocities(1).body = 'tibia_l';
 %       export3DVelocities(1).point_in_body = [0, -0.012, 0];
 %       export3DVelocities(1).name = 'left_shin';
 %
-%   - exportGRFs
+%   - exportGRFs -
 %   * export total ground reaction force of left and right side. [bool]
 %
-%   - exportGRMs
+%   - exportGRMs -
 %   * export total ground reaction moment of left and right side. [bool]
 %
-%   - exportSeparateGRFs
+%   - exportSeparateGRFs -
 %   * export ground reaction force of each contact element. [bool]
 %
-%   - exportContactPowers
+%   - exportContactPowers -
 %   * export deformation power of each contact element. [bool]
 %
 %   - compiler -
@@ -149,7 +149,7 @@ nInputs = 3*IO.nCoordinates; % number of coordinates in model
 generateF(nInputs, fooPath);
 
 %% Build external Function (.dll file).
-buildExternalFunction(outputFilename, outputDir, compiler, verbose_mode);
+buildExternalFunction(fooPath, outputFilename, outputDir, compiler, verbose_mode);
 
 %% Verification
 % Run ID with the .osim file and verify that we can get the same torques as

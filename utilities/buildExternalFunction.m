@@ -1,14 +1,17 @@
-function [] = buildExternalFunction(outputFilename, outputDir, compiler, verbose_mode)
+function [] = buildExternalFunction(fooPath, outputFilename, outputDir, compiler, verbose_mode)
 % --------------------------------------------------------------------------
 % buildExternalFunction
 %   Compiles the expression graph (foo_jac.c) into an external function (.dll)
 %
 %
 % INPUT:
-%   - outputFilename
+%   - fooPath -
+%   * path to foo.py and foo_jac.c [char]
+%
+%   - outputFilename -
 %   * name of the generated file [char]
 %
-%   - outputDir
+%   - outputDir -
 %   * full path to directory where the generated file shuld be saved [char]
 %
 %   - compiler -
@@ -40,18 +43,22 @@ function [] = buildExternalFunction(outputFilename, outputDir, compiler, verbose
 % Last edit date: 
 % --------------------------------------------------------------------------
 
+%% set paths
 [pathUtilities,~,~] = fileparts(mfilename('fullpath'));
 [pathMain,~,~] = fileparts(pathUtilities);
-pathBuildExternalFunction = fullfile(pathMain, 'buildExternalFunction');
+path_expression_graph_filename_build = fullfile(pathMain, 'buildExpressionGraph', outputFilename);
 path_external_functions_filename_install = fullfile(pathMain, 'installExternalFunction', outputFilename);
 mkdir(path_external_functions_filename_install);
+path_external_functions_build = fullfile(pathMain, 'buildExternalFunction');
 path_external_functions_filename_build = fullfile(pathMain, 'buildExternalFunction', outputFilename);
 mkdir(path_external_functions_filename_build);
 
-addpath(pathBuildExternalFunction);
-
+%% use cmake to compile foo_jac.c to .dll
+copyfile(fullfile(path_external_functions_build,'CMakeLists.txt'),path_external_functions_filename_build)
+copyfile(fullfile(fooPath,'foo_jac.c'),path_external_functions_filename_build)
 cd(path_external_functions_filename_build);
-cmd1 = ['cmake "', pathBuildExternalFunction, '" -G "', compiler, '" -DTARGET_NAME:STRING="',...
+
+cmd1 = ['cmake "', path_external_functions_filename_build, '" -G "', compiler, '" -DTARGET_NAME:STRING="',...
     outputFilename, '" -DINSTALL_DIR:PATH="', path_external_functions_filename_install, '"'];
 if verbose_mode
     system(cmd1);
@@ -66,11 +73,12 @@ else
 end
 cd(pathMain);
 
+%% copy generated files to output directory
 copyfile(fullfile(path_external_functions_filename_install, 'bin', [outputFilename '.dll']), outputDir);
 copyfile(fullfile(path_external_functions_filename_install, 'lib', [outputFilename '.lib']), outputDir);
 
-delete(fullfile(pathBuildExternalFunction, 'foo_jac.c'));
-delete(fullfile(pathBuildExternalFunction, 'foo.py'));
+%% remove directories with temporary files
+rmdir(path_expression_graph_filename_build, 's');
 rmdir(path_external_functions_filename_install, 's');
 rmdir(path_external_functions_filename_build, 's');
 
