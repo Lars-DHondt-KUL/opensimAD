@@ -70,7 +70,7 @@ end
 
 cd(BIN_DIR);
 path_EXE = fullfile(pathBuild, 'RelWithDebInfo', [outputFilename '.exe']);
-system(path_EXE);
+system(['"' path_EXE '"']);
 
 path_external_filename_foo = fullfile(BIN_DIR, 'foo.py');
 copyfile(path_external_filename_foo, pathBuildExternalFunction);

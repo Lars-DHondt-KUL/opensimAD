@@ -54,7 +54,7 @@ function [] = generateF(nInputs, fooPath)
 [pathUtilities,~,~] = fileparts(mfilename('fullpath'));
 cd(fullfile(pathUtilities,'genF'))
 
-command = ['genF.exe ' fooPath ' ' num2str(nInputs)];
+command = ['genF.exe "' fooPath '" ' num2str(nInputs)];
 system(command);
 
 cd ..

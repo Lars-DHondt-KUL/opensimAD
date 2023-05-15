@@ -97,7 +97,7 @@ idTool.setOutputGenForceFileName('ID_withOsimAndIDTool.sto');
 pathSetupID = fullfile(outputDir, 'SetupID.xml');
 idTool.print(pathSetupID);
 
-command = ['opensim-cmd', ' run-tool ', pathSetupID];
+command = ['opensim-cmd', ' run-tool ', '"' pathSetupID '"'];
 if verbose_mode
     system(command);
 else
