@@ -13,6 +13,7 @@
 %     - INPUTS: 
 %         - joint positions and velocities (intertwined)
 %         - joint accelerations
+%         - (optional) forces and moments acting on bodies
 %     - OUTPUTS:
 %         - joint torques
 %         - (optional) other variables exported from the model
@@ -63,6 +64,19 @@ verify_ID = true;
 jointsOrder = [];
 coordinatesOrder = [];
 
+
+input3DBodyForces(1).body = 'torso';
+input3DBodyForces(1).point_in_body = [-0.1, 0.3, 0];
+input3DBodyForces(1).name = 'back_push';
+input3DBodyForces(1).reference_frame = 'ground';
+
+input3DBodyMoments(1).body = 'tibia_l';
+input3DBodyMoments(1).name = 'exo_shank_l';
+input3DBodyMoments(1).reference_frame = 'tibia_l';
+input3DBodyMoments(2).body = 'calcn_l';
+input3DBodyMoments(2).name = 'exo_foot_l';
+input3DBodyMoments(2).reference_frame = 'tibia_l';
+
 % By default, the external function returns the joint torques. However, you
 % can also export other variables that you may want to use when formulating
 % your problem. Here, we provide a few examples of variables we typically use
@@ -88,8 +102,8 @@ export3DVelocities(1).name = 'left_shin';
 exportGRFs = true;
 
 % Export separate GRFs.
-% If true, right and left 3D GRFs (in this order) are exported for each of the
-% 6 contact spheres. 
+% If true, right and left 3D GRFs (in this order) are exported for each
+% contact sphere. 
 exportSeparateGRFs = true;
 
 % Export GRMs.
@@ -109,6 +123,7 @@ secondOrderDerivatives = false;
 
 %% Call generateExternalFunction function
 generateExternalFunction(pathOpenSimModel, outputDir, jointsOrder,...
-    coordinatesOrder, export3DPositions, export3DVelocities, exportGRFs,...
+    coordinatesOrder, input3DBodyForces, input3DBodyMoments,...
+    export3DPositions, export3DVelocities, exportGRFs,...
     exportGRMs, exportSeparateGRFs, exportContactPowers, outputFilename, compiler,...
     verbose_mode, verify_ID, secondOrderDerivatives);

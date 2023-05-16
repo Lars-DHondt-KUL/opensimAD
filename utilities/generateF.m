@@ -63,7 +63,7 @@ else
     secondOrderDerivatives = 'False';
 end
 
-command = ['genF.exe "' fooPath '" ' num2str(nInputs) ' ' secondOrderDerivatives];
+command = ['genF.exe "' fooPath '" ' num2str(nInputs) ' "' secondOrderDerivatives '"'];
 system(command);
 
 cd ..
