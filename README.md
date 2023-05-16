@@ -51,7 +51,7 @@ To compile this yourself:
   - Navigate to the folder: `cd opensimAD`
   - Install required packages: `python -m pip install casadi`
   - Install pyinstaller:  `conda install -c conda-forge pyinstaller`
-  - Create an executable from genF: `pyinstaller genF.py  --distpath C:/.../opensimAD/utilities`
+  - Create an executable from GenF: `pyinstaller GenF.py  --distpath C:/.../opensimAD/utilities`
 
 When running opensimAD, you can get an error from genF.exe that it cannot find casadi libraries. You then have to move the files from `./utilities/genF/casadi/` to `./utilities/genF/`.
 
