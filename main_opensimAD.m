@@ -64,7 +64,9 @@ verify_ID = true;
 jointsOrder = [];
 coordinatesOrder = [];
 
-
+% By default, the external function considers forces due to gravity and
+% contact elements. You can add more forces and moment to model e.g. a
+% pusher, an exoskeleton or to implement a custom contact model.
 input3DBodyForces(1).body = 'torso';
 input3DBodyForces(1).point_in_body = [-0.1, 0.3, 0];
 input3DBodyForces(1).name = 'back_push';

@@ -61,8 +61,8 @@ coordinateSet = model.getCoordinateSet();
 F = external('F', replace(fullfile(outputDir, [outputFilename, '.dll']),'\','/'));
 vec1 = zeros(IO.nInputs, 1);
 vec1(1:2:2*nCoordinates) = 0.05;
-if isfield(IO.inputs.Qs, 'pelvis_ty')
-    vec1(IO.inputs.Qs.pelvis_ty) = -0.05;
+if isfield(IO.input.Qs, 'pelvis_ty')
+    vec1(IO.input.Qs.pelvis_ty) = -0.05;
 end
 
 ID_F = full(F(vec1));
@@ -74,7 +74,7 @@ path_mot = fullfile(pathID, mot_file);
 
 if ~exist(path_mot, 'file')
     labels = ['time', coordinatesOrder];
-    vec4 = vec1(1:2:end);
+    vec4 = vec1(1:2:2*nCoordinates);
     data_coords = repmat(vec4, 1, 10);
     data_time = zeros(1, 10);
     data_time(1, :) = 0.01:0.01:0.1;
