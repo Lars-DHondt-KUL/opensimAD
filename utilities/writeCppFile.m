@@ -762,6 +762,13 @@ IO_indices.coordi = all_coordi;
 IO_indices.nCoordinates = nCoordinates;
 IO_indices.coordinatesOrder = coordinatesOrder;
 
+coordi_fields = fields(all_coordi);
+for i=1:nCoordinates
+    IO_indices.input.Qs.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i}) - 1;
+    IO_indices.input.Qdots.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i});
+    IO_indices.input.Qdotdots.(coordi_fields{i}) = 2*nCoordinates + all_coordi.(coordi_fields{i});
+end
+
 % positions
 if ~isempty(export3DPositions)
     IO_point_pos = struct();
