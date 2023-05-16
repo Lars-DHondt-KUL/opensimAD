@@ -54,16 +54,9 @@ function [] = generateF(nInputs, fooPath, secondOrderDerivatives)
 % version of genF.py.
 
 [pathUtilities,~,~] = fileparts(mfilename('fullpath'));
-cd(fullfile(pathUtilities,'genF'))
+cd(fullfile(pathUtilities,'GenF'))
 
-% Make sure that booleans is compatible with python
-if secondOrderDerivatives
-    secondOrderDerivatives = 'True';
-else
-    secondOrderDerivatives = 'False';
-end
-
-command = ['genF.exe "' fooPath '" ' num2str(nInputs) ' "' secondOrderDerivatives '"'];
+command = ['GenF.exe "' fooPath '" ' num2str(nInputs) ' ' num2str(secondOrderDerivatives)];
 system(command);
 
 cd ..

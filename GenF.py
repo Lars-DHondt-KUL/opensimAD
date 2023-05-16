@@ -6,7 +6,7 @@ import os
 
 PathFoo = sys.argv[1]
 dim = int(sys.argv[2])
-secondOrderDerivatives = bool(sys.argv[3])
+secondOrderDerivatives = bool(int(sys.argv[3]))
 
 os.chdir(PathFoo)
 sys.path.append(PathFoo)
