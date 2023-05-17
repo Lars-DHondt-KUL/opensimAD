@@ -40,7 +40,7 @@ Please cite this paper in your publications if you used OpenSimAD for simulation
   - Falisse A, et al. (2019) Rapid predictive simulations with complex musculoskeletal models suggest that diverse healthy and pathological human gaits can emerge from similar control strategies. J. R. Soc. Interface.162019040220190402. http://doi.org/10.1098/rsif.2019.0402
 
 ## Compiling GenF
-The included custom OpenSim libraries generate the expression graph as `foo.py`, which cannot be used with CasADi from MATLAB. To avoid the need to set up python, we have compiled the function that uses foo.py (`GenF.py`) into an executable that can be called from MATLAB (`./utilities/genF/genF.exe`).
+The included custom OpenSim libraries generate the expression graph as `foo.py`, which cannot be used with CasADi from MATLAB. To avoid the need to set up python, we have compiled the function that uses foo.py (`GenF.py`) into an executable that can be called from MATLAB (`./utilities/GenF/GenF.exe`).
 
 To compile this yourself:
   - Open an Anaconda prompt
@@ -53,7 +53,7 @@ To compile this yourself:
   - Install pyinstaller:  `conda install -c conda-forge pyinstaller`
   - Create an executable from GenF: `pyinstaller GenF.py  --distpath C:/.../opensimAD/utilities`
 
-When running opensimAD, you can get an error from genF.exe that it cannot find casadi libraries. You then have to move the files from `./utilities/genF/casadi/` to `./utilities/genF/`.
+When running opensimAD, you can get an error from genF.exe that it cannot find casadi libraries. You then have to move the files from `./utilities/GenF/casadi/` to `./utilities/GenF/`.
 
 ## Source code
-The libraries were compiled from [here](https://github.com/antoinefalisse/opensim-core/tree/AD-recorder-work-py-install).
+The libraries in `./opensimAD-install` were compiled from [here](https://github.com/antoinefalisse/opensim-core/tree/AD-recorder-work-py-install).
