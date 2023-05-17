@@ -47,10 +47,10 @@ pathID = fullfile(pathMain, 'InverseDynamics');
 % load input/output indices information
 load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
 
-coordinatesOrder = IO.coordinatesOrder;
+coordinatesOrder = fieldnames(IO.coordi);
 all_coordi = IO.coordi;
 joint_isTra = IO.jointi.translations;
-nCoordinates = IO.nCoordinates;
+nCoordinates = length(coordinatesOrder);
 
 % Run ID with the .osim file and verify that we can get the same torques as with the external function.
 model = Model(pathOpenSimModel);
@@ -59,7 +59,7 @@ coordinateSet = model.getCoordinateSet();
 
 % Extract torques from external function.
 F = external('F', replace(fullfile(outputDir, [outputFilename, '.dll']),'\','/'));
-vec1 = zeros(IO.nInputs, 1);
+vec1 = zeros(IO.input.nInputs, 1);
 vec1(1:2:2*nCoordinates) = 0.05;
 if isfield(IO.input.Qs, 'pelvis_ty')
     vec1(IO.input.Qs.pelvis_ty) = -0.05;
@@ -73,7 +73,7 @@ mot_file = ['Verify_', outputFilename, '.mot'];
 path_mot = fullfile(pathID, mot_file);
 
 if ~exist(path_mot, 'file')
-    labels = ['time', coordinatesOrder];
+    labels = [{'time'}, coordinatesOrder'];
     vec4 = vec1(1:2:2*nCoordinates);
     data_coords = repmat(vec4, 1, 10);
     data_time = zeros(1, 10);

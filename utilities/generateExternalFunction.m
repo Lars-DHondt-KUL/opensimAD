@@ -174,7 +174,7 @@ writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
 
 %% generate code with expression graph and derivative information (foo_jac.c)
 load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
-generateF(IO.nInputs, fooPath, secondOrderDerivatives);
+generateF(IO.input.nInputs, fooPath, secondOrderDerivatives);
 
 %% Build external Function (.dll file).
 buildExternalFunction(fooPath, outputFilename, outputDir, compiler, verbose_mode);
