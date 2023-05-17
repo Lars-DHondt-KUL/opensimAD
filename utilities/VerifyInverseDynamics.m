@@ -59,14 +59,13 @@ coordinateSet = model.getCoordinateSet();
 
 % Extract torques from external function.
 F = external('F', replace(fullfile(outputDir, [outputFilename, '.dll']),'\','/'));
-vec1 = zeros(nCoordinates * 2, 1);
-vec1(1:2:end) = 0.05;
-if isfield(all_coordi, 'pelvis_ty')
-    vec1((all_coordi.pelvis_ty - 1) * 2 + 1) = -0.05;
+vec1 = zeros(IO.nInputs, 1);
+vec1(1:2:2*nCoordinates) = 0.05;
+if isfield(IO.input.Qs, 'pelvis_ty')
+    vec1(IO.input.Qs.pelvis_ty) = -0.05;
 end
-vec2 = zeros(nCoordinates, 1);
-vec3 = [vec1; vec2];
-ID_F = full(F(vec3));
+
+ID_F = full(F(vec1));
 ID_F = ID_F(1:nCoordinates);
 
 % Generate .mot file with same position inputs
@@ -75,7 +74,7 @@ path_mot = fullfile(pathID, mot_file);
 
 if ~exist(path_mot, 'file')
     labels = ['time', coordinatesOrder];
-    vec4 = vec1(1:2:end);
+    vec4 = vec1(1:2:2*nCoordinates);
     data_coords = repmat(vec4, 1, 10);
     data_time = zeros(1, 10);
     data_time(1, :) = 0.01:0.01:0.1;

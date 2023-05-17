@@ -1,5 +1,6 @@
 function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
-    jointsOrder, coordinatesOrder,export3DPositions, export3DVelocities,...
+    jointsOrder, coordinatesOrder, input3DBodyForces, input3DBodyMoments,...
+    export3DPositions, export3DVelocities,...
     exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers,...
     outputFilename, compiler, verbose_mode, verify_ID, secondOrderDerivatives)
 % --------------------------------------------------------------------------
@@ -18,6 +19,7 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %       - INPUTS: 
 %           - joint positions and velocities (intertwined)
 %           - joint accelerations
+%           - (optional) forces and moments acting on bodies
 %       - OUTPUTS:
 %           - joint torques
 %           - (optional) other variables exported from the model 
@@ -42,6 +44,26 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %   * names of coordinate in order they should appear in the external 
 %   function input/output. Order should be consistent with jointsOrder.
 %   Pass empty to use order they are in the model file. [cell array of char]
+%
+%   - input3DBodyForces -
+%   * define inputs to add forces acting on bodies. Forces are expressed as 
+%   [x, y, z] components in given reference frame. [array of structs] 
+%   Example input:
+%     input3DBodyForces(1).body = 'torso';
+%     input3DBodyForces(1).point_in_body = [-0.1, 0.3, 0];
+%     input3DBodyForces(1).name = 'back_push';
+%     input3DBodyForces(1).reference_frame = 'ground';
+% 
+%   - input3DBodyMoments -
+%   * define inputs to add moments acting on bodies. Moments are expressed as 
+%   [x, y, z] components in given reference frame. [array of structs] 
+%   Example input:
+%     input3DBodyMoments(1).body = 'tibia_l';
+%     input3DBodyMoments(1).name = 'exo_shank_l';
+%     input3DBodyMoments(1).reference_frame = 'tibia_l';
+%     input3DBodyMoments(2).body = 'calcn_l';
+%     input3DBodyMoments(2).name = 'exo_foot_l';
+%     input3DBodyMoments(2).reference_frame = 'tibia_l';
 %
 %   - export3DPositions -
 %   * points of which the position in ground frame should be exported. 
@@ -126,7 +148,7 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 %   This code ignores the contribution of the patella to the inverse
 %   dynamics. Assuming the patella bodies are named 'patella_l' and
 %   'patella_r', the joint names include 'patel', and the coordinate names
-%   are 'knee_angle_ls_beta' and 'knee_angle_rs_beta'.
+%   are 'knee_angle_l_beta' and 'knee_angle_r_beta'.
 %
 % Reference: 
 %   Falisse A, Serrancolí G, et al. (2019) Algorithmic differentiation 
@@ -143,7 +165,8 @@ function [] = generateExternalFunction(pathOpenSimModel, outputDir,...
 
 %% write the cpp file.
 writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
-    jointsOrder, coordinatesOrder, export3DPositions, export3DVelocities,...
+    jointsOrder, coordinatesOrder, input3DBodyForces, input3DBodyMoments,...
+    export3DPositions, export3DVelocities,...
     exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers);
 
 %% build expression graph (foo.py)
@@ -151,8 +174,7 @@ writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
 
 %% generate code with expression graph and derivative information (foo_jac.c)
 load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
-nInputs = 3*IO.nCoordinates; % number of coordinates in model
-generateF(nInputs, fooPath, secondOrderDerivatives);
+generateF(IO.nInputs, fooPath, secondOrderDerivatives);
 
 %% Build external Function (.dll file).
 buildExternalFunction(fooPath, outputFilename, outputDir, compiler, verbose_mode);

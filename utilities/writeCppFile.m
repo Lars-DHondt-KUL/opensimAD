@@ -1,5 +1,6 @@
 function [] = writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
-    jointsOrder, coordinatesOrder, export3DPositions, export3DVelocities,...
+    jointsOrder, coordinatesOrder, input3DBodyForces, input3DBodyMoments,...
+    export3DPositions, export3DVelocities,...
     exportGRFs, exportGRMs, exportSeparateGRFs, exportContactPowers)
 % --------------------------------------------------------------------------
 % writeCppFile
@@ -14,7 +15,7 @@ function [] = writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
 %   Note: this code ignores the contribution of the patella to the inverse
 %   dynamics. Assuming the patella bodies are named 'patella_l' and
 %   'patella_r', the joint names include 'patel', and the coordinate names
-%   are 'knee_angle_ls_beta' and 'knee_angle_rs_beta'.
+%   are 'knee_angle_l_beta' and 'knee_angle_r_beta'.
 %
 %
 % INPUT:
@@ -22,21 +23,41 @@ function [] = writeCppFile(pathOpenSimModel, outputDir, outputFilename,...
 %   - pathOpenSimModel -
 %   * full path to OpenSim model file (.osim) [char]
 %
-%   - outputDir
+%   - outputDir -
 %   * full path to directory where the generated file should be saved [char]
 %
-%   - outputFilename
+%   - outputFilename -
 %   * name of the generated file [char]
 %
-%   - jointsOrder
+%   - jointsOrder -
 %   * names of joints in order they should appear in the external function
 %   input/output. Pass empty to use order they are in the model file. 
 %   [cell array of char]
 %
-%   - coordinatesOrder
+%   - coordinatesOrder -
 %   * names of coordinate in order they should appear in the external 
 %   function input/output. Order should be consistent with jointsOrder.
 %   Pass empty to use order they are in the model file. [cell array of char]
+%
+%   - input3DBodyForces -
+%   * define inputs to add forces acting on bodies. Forces are expressed as 
+%   [x, y, z] components in given reference frame. [array of structs] 
+%   Example input:
+%     input3DBodyForces(1).body = 'torso';
+%     input3DBodyForces(1).point_in_body = [-0.1, 0.3, 0];
+%     input3DBodyForces(1).name = 'back_push';
+%     input3DBodyForces(1).reference_frame = 'ground';
+% 
+%   - input3DBodyMoments -
+%   * define inputs to add moments acting on bodies. Moments are expressed as 
+%   [x, y, z] components in given reference frame. [array of structs] 
+%   Example input:
+%     input3DBodyMoments(1).body = 'tibia_l';
+%     input3DBodyMoments(1).name = 'exo_shank_l';
+%     input3DBodyMoments(1).reference_frame = 'tibia_l';
+%     input3DBodyMoments(2).body = 'calcn_l';
+%     input3DBodyMoments(2).name = 'exo_foot_l';
+%     input3DBodyMoments(2).reference_frame = 'tibia_l';
 %
 %   - export3DPositions
 %   * points of which the position in ground frame should be exported. 
@@ -147,6 +168,16 @@ for i = 0:forceSet.getSize()-1
     end
 end
 
+% Total number of inputs for controls (coordinate accelerations and
+% forces/moments on bodies
+nInputsControls = nCoordinates;
+if ~isempty(input3DBodyForces)
+    nInputsControls = nInputsControls + 3*length(input3DBodyForces);
+end
+if ~isempty(input3DBodyMoments)
+    nInputsControls = nInputsControls + 3*length(input3DBodyMoments);
+end
+
 % Total number of outputs for the external function
 nOutputs = nCoordinates;
 if exportGRFs
@@ -167,6 +198,8 @@ end
 if ~isempty(export3DVelocities)
     nOutputs = nOutputs + 3*length(export3DVelocities);
 end
+
+
 
 %% Include headers and generic helper function
 fid = fopen(pathOutputFile,'w');
@@ -201,7 +234,7 @@ fprintf(fid, 'constexpr int n_in = 2; \n');
 fprintf(fid, 'constexpr int n_out = 1; \n');
 fprintf(fid, 'constexpr int nCoordinates = %i; \n',nCoordinates);
 fprintf(fid, 'constexpr int NX = nCoordinates*2; \n');
-fprintf(fid, 'constexpr int NU = nCoordinates; \n');
+fprintf(fid, 'constexpr int NU = %i; \n', nInputsControls);
 fprintf(fid, 'constexpr int NR = %i; \n\n', nOutputs);
 
 fprintf(fid, 'template<typename T> \n');
@@ -483,6 +516,13 @@ end
 
 fprintf(fid, '\n');
 
+% add input indices
+coordi_fields = fields(all_coordi);
+for i=1:nCoordinates
+    IO_indices.input.Qs.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i}) - 1;
+    IO_indices.input.Qdots.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i});
+    IO_indices.input.Qdotdots.(coordi_fields{i}) = 2*nCoordinates + all_coordi.(coordi_fields{i});
+end
 
 %% Define contacts
 for i = 0:(forceSet.getSize()-1)
@@ -541,7 +581,7 @@ for i = 0:(forceSet.getSize()-1)
     end
 end
 
-%% Run inverse dynamics
+%% Inverse dynamics
 fprintf(fid, '\t// Initialize system.\n');
 fprintf(fid, '\tSimTK::State* state;\n');
 fprintf(fid, '\tstate = new State(model->initSystem());\n\n');
@@ -551,14 +591,14 @@ fprintf(fid, '\tstd::vector<T> x(arg[0], arg[0] + NX);\n');
 fprintf(fid, '\tstd::vector<T> u(arg[1], arg[1] + NU);\n\n');
 
 fprintf(fid, '\t// States and controls.\n');
-fprintf(fid, '\tT ua[NU];\n');
+fprintf(fid, '\tT ua[nCoordinates];\n');
 fprintf(fid, '\tVector QsUs(NX);\n');
 fprintf(fid, '\t/// States\n');
 fprintf(fid, '\tfor (int i = 0; i < NX; ++i) QsUs[i] = x[i];\n');
 fprintf(fid, '\t/// Controls\n');
 fprintf(fid, '\t/// OpenSim and Simbody have different state orders.\n');
 fprintf(fid, '\tauto indicesOSInSimbody = getIndicesOSInSimbody(*model);\n');
-fprintf(fid, '\tfor (int i = 0; i < NU; ++i) ua[i] = u[indicesOSInSimbody[i]];\n\n');
+fprintf(fid, '\tfor (int i = 0; i < nCoordinates; ++i) ua[i] = u[indicesOSInSimbody[i]];\n\n');
 
 fprintf(fid, '\t// Set state variables and realize.\n');
 fprintf(fid, '\tmodel->setStateVariableValues(*state, QsUs);\n');
@@ -587,7 +627,7 @@ fprintf(fid, '\t\tmodel->getBodySet().get(i).getMassCenter(),\n');
 fprintf(fid, '\t\tmodel->getBodySet().get(i).getMass()*gravity, appliedBodyForces);\n');
 fprintf(fid, '\t}\n');
 
-
+% Add contact forces
 fprintf(fid, '\t/// Add contact forces to appliedBodyForces.\n');
 count = 0;
 for i = 0:forceSet.getSize()-1
@@ -619,7 +659,51 @@ end
 fprintf(fid, '\t/// knownUdot.\n');
 fprintf(fid, '\tVector knownUdot(nCoordinates);\n');
 fprintf(fid, '\tknownUdot.setToZero();\n');
-fprintf(fid, '\tfor (int i = 0; i < nCoordinates; ++i) knownUdot[i] = ua[i];\n');
+fprintf(fid, '\tfor (int i = 0; i < nCoordinates; ++i) knownUdot[i] = ua[i];\n\n');
+
+% Add input forces
+countInputU = nCoordinates;
+for i=1:length(input3DBodyForces)
+    if i==1
+        fprintf(fid, '\t/// forces acting on bodies\n');
+    end
+    fprintf(fid, '\tVec3 Point_%s = Vec3(%.20f, %.20f, %.20f);\n', input3DBodyForces(i).name, input3DBodyForces(i).point_in_body(1), input3DBodyForces(i).point_in_body(2), input3DBodyForces(i).point_in_body(3));
+    fprintf(fid, '\tVec3 Force_%s;', input3DBodyForces(i).name);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) Force_%s[i] = u[%i+i];\n', input3DBodyForces(i).name, countInputU);
+    
+    if strcmpi(input3DBodyForces(i).reference_frame,'ground')
+        fprintf(fid, '\tVec3 Force_%s_inG = Force_%s;\n', input3DBodyForces(i).name, input3DBodyForces(i).name);
+    else
+        fprintf(fid, '\tVec3 Force_%s_inG = %s->getMobilizedBody().expressVectorInGroundFrame(*state, Force_%s);\n', input3DBodyForces(i).name, input3DBodyForces(i).reference_frame, input3DBodyForces(i).name);
+    end
+
+    fprintf(fid,'\tmodel->getMatterSubsystem().addInStationForce(*state, %s->getMobilizedBodyIndex(), Point_%s, Force_%s_inG, appliedBodyForces);\n\n', input3DBodyForces(i).body, input3DBodyForces(i).name, input3DBodyForces(i).name);
+
+    IO_indices.input.Forces.(input3DBodyForces(i).name) = countInputU + [1:3] + 2*nCoordinates;
+    countInputU = countInputU + 3;
+end
+
+% Add input moments
+for i=1:length(input3DBodyMoments)
+    if i==1
+        fprintf(fid, '\t/// moments acting on bodies\n');
+    end
+    fprintf(fid, '\tVec3 Moment_%s;\n', input3DBodyMoments(i).name);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) Moment_%s[i] = u[%i+i];\n', input3DBodyMoments(i).name, countInputU);
+    
+    if strcmpi(input3DBodyMoments(i).reference_frame,'ground')
+        fprintf(fid, '\tVec3 Moment_%s_inG = Moment_%s;\n', input3DBodyMoments(i).name, input3DBodyMoments(i).name);
+    else
+        fprintf(fid, '\tVec3 Moment_%s_inG = %s->getMobilizedBody().expressVectorInGroundFrame(*state, Moment_%s);\n', input3DBodyMoments(i).name, input3DBodyMoments(i).reference_frame, input3DBodyMoments(i).name);
+    end
+
+    fprintf(fid,'\tmodel->getMatterSubsystem().addInBodyTorque(*state, %s->getMobilizedBodyIndex(), Moment_%s_inG, appliedBodyForces);\n\n', input3DBodyMoments(i).body, input3DBodyMoments(i).name);
+
+    IO_indices.input.Moments.(input3DBodyMoments(i).name) = countInputU + [1:3];
+    countInputU = countInputU + 3;
+end
+
+% Calculate residuals
 fprintf(fid, '\t/// Calculate residual forces.\n');
 fprintf(fid, '\tVector residualMobilityForces(nCoordinates);\n');
 fprintf(fid, '\tresidualMobilityForces.setToZero();\n');
@@ -752,7 +836,7 @@ fprintf(fid, '\t/// Outputs.\n');
 fprintf(fid, '\t/// Residual forces (OpenSim and Simbody have different state orders).\n');
 fprintf(fid, '\tauto indicesSimbodyInOS = getIndicesSimbodyInOS(*model);\n');
 % inverse dynamics forces and moments
-fprintf(fid, '\tfor (int i = 0; i < NU; ++i) res[0][i] =\n');
+fprintf(fid, '\tfor (int i = 0; i < nCoordinates; ++i) res[0][i] =\n');
 fprintf(fid, '\t\t\tvalue<T>(residualMobilityForces[indicesSimbodyInOS[i]]);\n');
 count_acc = 0;
 
@@ -762,21 +846,15 @@ jointi.translations = joint_isTra;
 IO_indices.jointi = jointi;
 IO_indices.coordi = all_coordi;
 IO_indices.nCoordinates = nCoordinates;
+IO_indices.nInputs = 2*nCoordinates + countInputU;
 IO_indices.coordinatesOrder = coordinatesOrder;
-
-coordi_fields = fields(all_coordi);
-for i=1:nCoordinates
-    IO_indices.input.Qs.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i}) - 1;
-    IO_indices.input.Qdots.(coordi_fields{i}) = 2*all_coordi.(coordi_fields{i});
-    IO_indices.input.Qdotdots.(coordi_fields{i}) = 2*nCoordinates + all_coordi.(coordi_fields{i});
-end
 
 % positions
 if ~isempty(export3DPositions)
     IO_point_pos = struct();
     for c_seg = 1:length(export3DPositions)
         name = export3DPositions(c_seg).name;
-        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(%s_posInGround[i]);\n', count_acc + (c_seg-1) * 3, name);
+        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(%s_posInGround[i]);\n', count_acc + (c_seg-1) * 3, name);
         tmp = outputCount + count_acc + (c_seg - 1) * 3;
         segment_i = tmp : tmp + 2;
         IO_point_pos.(name) = segment_i;
@@ -790,7 +868,7 @@ if ~isempty(export3DVelocities)
     IO_point_vel = struct();
     for c_seg = 1:length(export3DVelocities)
         name = export3DVelocities(c_seg).name;
-        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(%s_velInGround[i]);\n', count_acc + (c_seg-1) * 3, name);
+        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(%s_velInGround[i]);\n', count_acc + (c_seg-1) * 3, name);
         tmp = outputCount + count_acc + (c_seg - 1) * 3;
         segment_i = tmp : tmp + 2;
         IO_point_vel.(name) = segment_i;
@@ -803,8 +881,8 @@ end
 IO_GRFs = {};
 if exportGRFs
     fprintf(fid, '\t/// Ground reaction forces.\n');
-    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_r[1][i]);\n', count_acc);
-    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_l[1][i]);\n', count_acc + 3);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_r[1][i]);\n', count_acc);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_l[1][i]);\n', count_acc + 3);
     tmp = outputCount + count_acc;
     IO_GRFs.right_foot = tmp:tmp+2;
     IO_GRFs.left_foot = tmp+3:tmp+5;
@@ -814,7 +892,7 @@ if exportSeparateGRFs
     fprintf(fid, '\t/// Separate Ground reaction forces.\n');
     count_GRF = 1;
     for i_GRF = 1:nContacts
-        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRF_%s[1][i]);\n', count_acc, num2str(i_GRF-1));
+        fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_%s[1][i]);\n', count_acc, num2str(i_GRF-1));
         tmp = outputCount + count_acc;
         IO_GRFs.(['contact_sphere_' num2str(i_GRF-1)]) = tmp:tmp+2;
         count_acc = count_acc + 3;
@@ -829,8 +907,8 @@ end
 if exportGRMs
     IO_GRMs = struct();
     fprintf(fid, '\t/// Ground reaction moments.\n');
-    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRM_r[1][i]);\n', count_acc);
-    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + NU + %i] = value<T>(GRM_l[1][i]);\n', count_acc + 3);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRM_r[1][i]);\n', count_acc);
+    fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRM_l[1][i]);\n', count_acc + 3);
     tmp = outputCount + count_acc;
     IO_GRMs.right_total = tmp:tmp+2;
     IO_GRMs.left_total = tmp+3:tmp+5;
@@ -843,7 +921,7 @@ if exportContactPowers
     IO_P_HC_ys = struct();
     fprintf(fid, '\t/// Contact spheres deformation power.\n');
     for i_GRF = 1:nContacts
-        fprintf(fid, '\tres[0][NU + %i] = value<T>(P_HC_y_%s);\n', count_acc, num2str(i_GRF-1));
+        fprintf(fid, '\tres[0][nCoordinates + %i] = value<T>(P_HC_y_%s);\n', count_acc, num2str(i_GRF-1));
         tmp = outputCount + count_acc;
         IO_P_HC_ys.(['contact_sphere_', num2str(i_GRF-1)]) = tmp;
         count_acc = count_acc + 1;
