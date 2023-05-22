@@ -751,9 +751,9 @@ if exportGRFs
         c_force_elt = forceSet.get(i-1);
         if strcmp(c_force_elt.getConcreteClassName(),'SmoothSphereHalfSpaceForce')
             c_force_elt_name = char(c_force_elt.getName());
-            if strcmp(c_force_elt_name(end-1:end),'_r')
+            if strcmpi(c_force_elt_name(end-1:end),'_r') || strcmpi(c_force_elt_name(1:2),'r_')
                 fprintf(fid, '\tGRF_r += GRF_%s;\n', num2str(count));
-            elseif strcmp(c_force_elt_name(end-1:end),'_l')
+            elseif strcmpi(c_force_elt_name(end-1:end),'_l') || strcmpi(c_force_elt_name(1:2),'l_')
                 fprintf(fid, '\tGRF_l += GRF_%s;\n', num2str(count));
             else
                 error("Cannot identify contact side");
