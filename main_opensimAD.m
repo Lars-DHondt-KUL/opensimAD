@@ -48,7 +48,7 @@ pathOpenSimModel = fullfile(pathMain, 'examples', 'Hamner_modified.osim');
 outputDir = fullfile(pathMain, 'examples');
 
 % Output file name
-outputFilename = 'F_test';
+outputFilename = 'F_Hamner';
 
 % Compiler
 compiler = 'Visual Studio 17 2022';

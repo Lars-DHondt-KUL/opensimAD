@@ -123,19 +123,6 @@ forceSet = model.getForceSet();
 coordinateSet = model.getCoordinateSet();
 nCoordinates = coordinateSet.getSize();
 
-% Ignore patella coordinate
-coordinates = {};
-for coor = 0:nCoordinates-1
-    coordinates{coor+1} = char(coordinateSet.get(coor).getName());
-end
-sides = {'r', 'l'};
-for i = 1:length(sides)
-    side = sides{i};
-    if ismember(sprintf('knee_angle_%s_beta', side), coordinates)
-        nCoordinates = nCoordinates - 1;
-        nJoints = nJoints - 1;
-    end
-end
 
 % Get joint and coordinate names in order
 if isempty(jointsOrder) || isempty(coordinatesOrder)
@@ -156,6 +143,20 @@ if isempty(jointsOrder) || isempty(coordinatesOrder)
                 end
             end
         end
+    end
+end
+
+% Ignore patella coordinate
+coordinates = {};
+for coor = 0:nCoordinates-1
+    coordinates{coor+1} = char(coordinateSet.get(coor).getName());
+end
+sides = {'r', 'l'};
+for i = 1:length(sides)
+    side = sides{i};
+    if ismember(['knee_angle_' side '_beta'], coordinates)
+        nCoordinates = nCoordinates - 1;
+        nJoints = nJoints - 1;
     end
 end
 
