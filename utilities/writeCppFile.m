@@ -572,6 +572,9 @@ for i = 0:(forceSet.getSize()-1)
         fprintf(fid, '\t%s->set_dynamic_friction(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_dynamic_friction());
         fprintf(fid, '\t%s->set_viscous_friction(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_viscous_friction());
         fprintf(fid, '\t%s->set_transition_velocity(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_transition_velocity());
+        fprintf(fid, '\t%s->set_constant_contact_force(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_constant_contact_force());
+        fprintf(fid, '\t%s->set_hertz_smoothing(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_hertz_smoothing());
+        fprintf(fid, '\t%s->set_hunt_crossley_smoothing(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_hunt_crossley_smoothing());
         
         fprintf(fid, '\t%s->connectSocket_sphere_frame(*%s);\n', c_force_elt.getName(), geo1_frameName);
         if strcmp(geo0_frameName, 'ground')
