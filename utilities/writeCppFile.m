@@ -487,8 +487,6 @@ if ~isempty(jointsOrder)
         try
             c_joint = jointSet.get(jointOrder);
             c_joint_name = char(c_joint.getName());
-            parent_frame = c_joint.get_frames(0);
-            parent_frame_name = char(parent_frame.getParentFrame().getName());
             
             for j = 0:c_joint.numCoordinates()-1
                 c_joint_coor = c_joint.get_coordinates(j);
@@ -801,9 +799,9 @@ if exportGRMs
             fprintf(fid, '\tVec3 %s_locationCP_B = model->getGround().findStationLocationInAnotherFrame(*state, locationCP_G_adj_%i, *%s);\n', c_force_elt_name, count, geo1_frameName);
             fprintf(fid, '\tVec3 GRM_%i = (TR_GB_%s*%s_locationCP_B) %% GRF_%i[1];\n', count, geo1_frameName, c_force_elt_name, count);
 
-            if strcmp(c_force_elt_name(end-1:end), '_r')
+            if strcmpi(c_force_elt_name(end-1:end),'_r') || strcmpi(c_force_elt_name(1:2),'r_')
                 fprintf(fid, '\tGRM_r += GRM_%i;\n', count);
-            elseif strcmp(c_force_elt_name(end-1:end), '_l')
+            elseif strcmpi(c_force_elt_name(end-1:end),'_l') || strcmpi(c_force_elt_name(1:2),'l_')
                 fprintf(fid, '\tGRM_l += GRM_%i;\n', count);
             else
                 error('Cannot identify contact side');
