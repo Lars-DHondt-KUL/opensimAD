@@ -17,7 +17,7 @@ This workflow is not limited to full body models. [Any OpenSim model](https://us
     - CasADi
 
 ### Example
-  - Make sure CasADi is in your MATLAB path. Use `addpath(genpath(casadi_path))` with casadpath the path to the top folder of your CasADi download.
+  - Make sure CasADi is in your MATLAB path. Use `addpath(genpath(casadi_path))` with casadi_path the path to the top folder of your CasADi download.
   - Run `main_opensimAD.m`
   - You should get as output a few files in the example folder. Among them: `F_test.cpp` and `F_test.dll`. The .cpp file contains the source code of the external function, whereas the .dll file is the [dynamically linked library](https://web.casadi.org/docs/#casadi-s-external-function) that can be called when formulating your trajectory optimization problem. `F_test_IO.mat` contains a struct `IO` with the indices relating to the different inputs and outputs of `F`.
 
