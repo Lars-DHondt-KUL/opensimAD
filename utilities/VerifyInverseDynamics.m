@@ -44,13 +44,15 @@ import casadi.*
 [pathMain,~,~] = fileparts(pathUtilities);
 pathID = fullfile(pathMain, 'InverseDynamics');
 
+[~,osimFileName,~] = fileparts(pathOpenSimModel);
+
 % load input/output indices information
 load(fullfile(outputDir, [outputFilename, '_IO.mat']),'IO');
 
-coordinatesOrder = IO.coordinatesOrder;
+coordinatesOrder = fieldnames(IO.coordi);
 all_coordi = IO.coordi;
 joint_isTra = IO.jointi.translations;
-nCoordinates = IO.nCoordinates;
+nCoordinates = length(coordinatesOrder);
 
 % Run ID with the .osim file and verify that we can get the same torques as with the external function.
 model = Model(pathOpenSimModel);
@@ -59,7 +61,7 @@ coordinateSet = model.getCoordinateSet();
 
 % Extract torques from external function.
 F = external('F', replace(fullfile(outputDir, [outputFilename, '.dll']),'\','/'));
-vec1 = zeros(IO.nInputs, 1);
+vec1 = zeros(IO.input.nInputs, 1);
 vec1(1:2:2*nCoordinates) = 0.05;
 if isfield(IO.input.Qs, 'pelvis_ty')
     vec1(IO.input.Qs.pelvis_ty) = -0.05;
@@ -73,7 +75,7 @@ mot_file = ['Verify_', outputFilename, '.mot'];
 path_mot = fullfile(pathID, mot_file);
 
 if ~exist(path_mot, 'file')
-    labels = ['time', coordinatesOrder];
+    labels = [{'time'}, coordinatesOrder'];
     vec4 = vec1(1:2:2*nCoordinates);
     data_coords = repmat(vec4, 1, 10);
     data_time = zeros(1, 10);
@@ -104,25 +106,7 @@ else
 end
 
 % Extract torques from .osim + ID tool.
-headers = {};
-nCoordinatesAll = coordinateSet.getSize();
-for coord = 0:nCoordinatesAll-1
-    if any(all_coordi.(char(coordinateSet.get(coord).getName())) == joint_isTra)
-        suffix_header = '_force';
-    else
-        suffix_header = '_moment';
-    end
-    headers{end+1} = [char(coordinateSet.get(coord).getName()), suffix_header];
-end
-
-% Extract data
 data = importdata(fullfile(outputDir, 'ID_withOsimAndIDTool.sto'));
-% Convert to table
-ID_osim_df = table(data.data(:, 1), 'VariableNames', {'time'});
-for i = 1:numel(headers)
-    idx = strcmp(data.colheaders,headers{i});
-    ID_osim_df.(headers{i}) = data.data(:, idx);
-end
 
 ID_osim = zeros(nCoordinates, 1);
 for count = 1:numel(coordinatesOrder)
@@ -132,18 +116,19 @@ for count = 1:numel(coordinatesOrder)
     else
         suffix_header = '_moment';
     end
-    ID_osim(count) = ID_osim_df.([coordinateOrder suffix_header])(1);
+    ID_osim(count) = data.data(1,strcmp(data.colheaders,[coordinateOrder,suffix_header]));
+
 end
 
 % Assert we get the same torques.
 test_diff = max(abs(ID_osim - ID_F)) < 1e-6;
 if test_diff
-    disp('ID outputs match')
+    disp(['Inverse dynamics from "' outputFilename, '.dll" matches IDTool for "' osimFileName '.osim".'])
     delete(fullfile(outputDir, 'ID_withOsimAndIDTool.sto'));
     delete(path_mot);
     delete(pathSetupID);
 else
-    warning('error F vs ID tool & osim');
+    warning(['Inverse dynamics from "' outputFilename, '.dll" does not match IDTool for "' osimFileName '.osim".']);
 end
 
 

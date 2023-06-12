@@ -123,19 +123,6 @@ forceSet = model.getForceSet();
 coordinateSet = model.getCoordinateSet();
 nCoordinates = coordinateSet.getSize();
 
-% Ignore patella coordinate
-coordinates = {};
-for coor = 0:nCoordinates-1
-    coordinates{coor+1} = char(coordinateSet.get(coor).getName());
-end
-sides = {'r', 'l'};
-for i = 1:length(sides)
-    side = sides{i};
-    if ismember(sprintf('knee_angle_%s_beta', side), coordinates)
-        nCoordinates = nCoordinates - 1;
-        nJoints = nJoints - 1;
-    end
-end
 
 % Get joint and coordinate names in order
 if isempty(jointsOrder) || isempty(coordinatesOrder)
@@ -156,6 +143,20 @@ if isempty(jointsOrder) || isempty(coordinatesOrder)
                 end
             end
         end
+    end
+end
+
+% Ignore patella coordinate
+coordinates = {};
+for coor = 0:nCoordinates-1
+    coordinates{coor+1} = char(coordinateSet.get(coor).getName());
+end
+sides = {'r', 'l'};
+for i = 1:length(sides)
+    side = sides{i};
+    if ismember(['knee_angle_' side '_beta'], coordinates)
+        nCoordinates = nCoordinates - 1;
+        nJoints = nJoints - 1;
     end
 end
 
@@ -486,8 +487,6 @@ if ~isempty(jointsOrder)
         try
             c_joint = jointSet.get(jointOrder);
             c_joint_name = char(c_joint.getName());
-            parent_frame = c_joint.get_frames(0);
-            parent_frame_name = char(parent_frame.getParentFrame().getName());
             
             for j = 0:c_joint.numCoordinates()-1
                 c_joint_coor = c_joint.get_coordinates(j);
@@ -525,6 +524,7 @@ for i=1:nCoordinates
 end
 
 %% Define contacts
+contactSphereNames = [];
 for i = 0:(forceSet.getSize()-1)
     c_force_elt = forceSet.get(i);
     if strcmp(c_force_elt.getConcreteClassName(),'SmoothSphereHalfSpaceForce')
@@ -549,6 +549,8 @@ for i = 0:(forceSet.getSize()-1)
         obj = ContactSphere.safeDownCast(geo1);
         geo1_radius = obj.getRadius();
 
+        contactSphereNames{end+1} = char(obj.getName);
+
         fprintf(fid, '\tOpenSim::%s* %s;\n',c_force_elt.getConcreteClassName(),c_force_elt.getName());
         if strcmp(geo0_frameName,'ground')
             fprintf(fid, '\t%s = new %s("%s", *%s, model->getGround());\n',c_force_elt.getName(),c_force_elt.getConcreteClassName(),c_force_elt.getName(),geo1_frameName);
@@ -568,6 +570,9 @@ for i = 0:(forceSet.getSize()-1)
         fprintf(fid, '\t%s->set_dynamic_friction(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_dynamic_friction());
         fprintf(fid, '\t%s->set_viscous_friction(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_viscous_friction());
         fprintf(fid, '\t%s->set_transition_velocity(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_transition_velocity());
+        fprintf(fid, '\t%s->set_constant_contact_force(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_constant_contact_force());
+        fprintf(fid, '\t%s->set_hertz_smoothing(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_hertz_smoothing());
+        fprintf(fid, '\t%s->set_hunt_crossley_smoothing(%.20f);\n', c_force_elt.getName(), c_force_elt_obj.get_hunt_crossley_smoothing());
         
         fprintf(fid, '\t%s->connectSocket_sphere_frame(*%s);\n', c_force_elt.getName(), geo1_frameName);
         if strcmp(geo0_frameName, 'ground')
@@ -699,7 +704,7 @@ for i=1:length(input3DBodyMoments)
 
     fprintf(fid,'\tmodel->getMatterSubsystem().addInBodyTorque(*state, %s->getMobilizedBodyIndex(), Moment_%s_inG, appliedBodyForces);\n\n', input3DBodyMoments(i).body, input3DBodyMoments(i).name);
 
-    IO_indices.input.Moments.(input3DBodyMoments(i).name) = countInputU + [1:3];
+    IO_indices.input.Moments.(input3DBodyMoments(i).name) = countInputU + [1:3] + 2*nCoordinates;
     countInputU = countInputU + 3;
 end
 
@@ -748,9 +753,9 @@ if exportGRFs
         c_force_elt = forceSet.get(i-1);
         if strcmp(c_force_elt.getConcreteClassName(),'SmoothSphereHalfSpaceForce')
             c_force_elt_name = char(c_force_elt.getName());
-            if strcmp(c_force_elt_name(end-1:end),'_r')
+            if strcmpi(c_force_elt_name(end-1:end),'_r') || strcmpi(c_force_elt_name(1:2),'r_')
                 fprintf(fid, '\tGRF_r += GRF_%s;\n', num2str(count));
-            elseif strcmp(c_force_elt_name(end-1:end),'_l')
+            elseif strcmpi(c_force_elt_name(end-1:end),'_l') || strcmpi(c_force_elt_name(1:2),'l_')
                 fprintf(fid, '\tGRF_l += GRF_%s;\n', num2str(count));
             else
                 error("Cannot identify contact side");
@@ -794,9 +799,9 @@ if exportGRMs
             fprintf(fid, '\tVec3 %s_locationCP_B = model->getGround().findStationLocationInAnotherFrame(*state, locationCP_G_adj_%i, *%s);\n', c_force_elt_name, count, geo1_frameName);
             fprintf(fid, '\tVec3 GRM_%i = (TR_GB_%s*%s_locationCP_B) %% GRF_%i[1];\n', count, geo1_frameName, c_force_elt_name, count);
 
-            if strcmp(c_force_elt_name(end-1:end), '_r')
+            if strcmpi(c_force_elt_name(end-1:end),'_r') || strcmpi(c_force_elt_name(1:2),'r_')
                 fprintf(fid, '\tGRM_r += GRM_%i;\n', count);
-            elseif strcmp(c_force_elt_name(end-1:end), '_l')
+            elseif strcmpi(c_force_elt_name(end-1:end),'_l') || strcmpi(c_force_elt_name(1:2),'l_')
                 fprintf(fid, '\tGRM_l += GRM_%i;\n', count);
             else
                 error('Cannot identify contact side');
@@ -845,9 +850,9 @@ jointi.rotations = joint_isRot;
 jointi.translations = joint_isTra;
 IO_indices.jointi = jointi;
 IO_indices.coordi = all_coordi;
-IO_indices.nCoordinates = nCoordinates;
-IO_indices.nInputs = 2*nCoordinates + countInputU;
-IO_indices.coordinatesOrder = coordinatesOrder;
+% IO_indices.nCoordinates = nCoordinates;
+IO_indices.input.nInputs = 2*nCoordinates + countInputU;
+% IO_indices.coordinatesOrder = coordinatesOrder;
 
 % positions
 if ~isempty(export3DPositions)
@@ -884,8 +889,8 @@ if exportGRFs
     fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_r[1][i]);\n', count_acc);
     fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_l[1][i]);\n', count_acc + 3);
     tmp = outputCount + count_acc;
-    IO_GRFs.right_foot = tmp:tmp+2;
-    IO_GRFs.left_foot = tmp+3:tmp+5;
+    IO_GRFs.right_total = tmp:tmp+2;
+    IO_GRFs.left_total = tmp+3:tmp+5;
     count_acc = count_acc + 6;
 end
 if exportSeparateGRFs
@@ -894,7 +899,7 @@ if exportSeparateGRFs
     for i_GRF = 1:nContacts
         fprintf(fid, '\tfor (int i = 0; i < 3; ++i) res[0][i + nCoordinates + %i] = value<T>(GRF_%s[1][i]);\n', count_acc, num2str(i_GRF-1));
         tmp = outputCount + count_acc;
-        IO_GRFs.(['contact_sphere_' num2str(i_GRF-1)]) = tmp:tmp+2;
+        IO_GRFs.(contactSphereNames{i_GRF}) = tmp:tmp+2;
         count_acc = count_acc + 3;
         count_GRF = count_GRF + 1;
     end
@@ -923,7 +928,7 @@ if exportContactPowers
     for i_GRF = 1:nContacts
         fprintf(fid, '\tres[0][nCoordinates + %i] = value<T>(P_HC_y_%s);\n', count_acc, num2str(i_GRF-1));
         tmp = outputCount + count_acc;
-        IO_P_HC_ys.(['contact_sphere_', num2str(i_GRF-1)]) = tmp;
+        IO_P_HC_ys.(contactSphereNames{i_GRF}) = tmp;
         count_acc = count_acc + 1;
     end
     IO_indices.P_contact_deformation_y = IO_P_HC_ys;
