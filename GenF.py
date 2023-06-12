@@ -20,6 +20,8 @@ F = ca.Function('F', [arg], [y])
 cg.add(F)
 cg.add(F.jacobian())
 
+F.save('foo')
+
 if secondOrderDerivatives:
     # Generate also forward, reverse, and forward-over-reverse to use an exact Hessian
     Fr = F.reverse(1)
