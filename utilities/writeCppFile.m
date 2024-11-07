@@ -131,7 +131,7 @@ if isempty(jointsOrder) || isempty(coordinatesOrder)
     for i = 0:nJoints-1
         joint_i = jointSet.get(i);
         joint_name_i = char(joint_i.getName());
-        if ~contains(joint_name_i, 'patel')
+        if ~contains(joint_name_i, 'patel') % do not add patella joint to jointsOrder
             jointsOrder{end+1} = joint_name_i;
             joint_i_Nc = joint_i.numCoordinates();
             for j = 0:joint_i_Nc-1
@@ -180,9 +180,9 @@ if ~isempty(input3DBodyMoments)
 end
 
 % Total number of outputs for the external function
-nOutputs = nCoordinates;
+nOutputs = nCoordinates; % ID moment/force per coordinate
 if exportGRFs
-    nOutputs = nOutputs + 6;
+    nOutputs = nOutputs + 6; % 3 right and 3 left
 end
 if exportSeparateGRFs
     nOutputs = nOutputs + 3*nContacts;
@@ -191,7 +191,7 @@ if exportContactPowers
     nOutputs = nOutputs + nContacts;
 end
 if exportGRMs
-    nOutputs = nOutputs + 6;
+    nOutputs = nOutputs + 6; % 3 right and 3 left
 end
 if ~isempty(export3DPositions)
     nOutputs = nOutputs + 3*length(export3DPositions);
@@ -231,7 +231,7 @@ fprintf(fid, '#include <fstream>\n\n');
 fprintf(fid, 'using namespace SimTK;\n');
 fprintf(fid, 'using namespace OpenSim;\n\n');
 
-fprintf(fid, 'constexpr int n_in = 2; \n');
+fprintf(fid, 'constexpr int n_in = 2; \n'); % states and controls vectors
 fprintf(fid, 'constexpr int n_out = 1; \n');
 fprintf(fid, 'constexpr int nCoordinates = %i; \n',nCoordinates);
 fprintf(fid, 'constexpr int NX = nCoordinates*2; \n');
@@ -472,6 +472,7 @@ for i = 0:jointSet.getSize()-1
 end
 
 %% Add joints to model in pre-defined order
+% structs with indices. for later use
 jointi = [];
 all_coordi = [];
 joint_isRot = [];
@@ -485,7 +486,7 @@ if ~isempty(jointsOrder)
         coordi = [];
         
         try
-            c_joint = jointSet.get(jointOrder);
+            c_joint = jointSet.get(jointOrder); % will fail if joint from jointsOrder is not in jointSet (i.e. model file)
             c_joint_name = char(c_joint.getName());
             
             for j = 0:c_joint.numCoordinates()-1
